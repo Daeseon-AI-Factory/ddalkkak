@@ -42,15 +42,13 @@ When you encounter an item that fits this file:
 
 ## UX
 
-### Pane navigation shortcuts (⌘1..9, ⌘⌥arrows)
-- **Why deferred**: Phase 1.4+ scope.
-- **Trigger to revisit**: Dogfood reveals "I need to nav between panes faster than click".
-- **Effort estimate**: ~30 min (id-by-index lookup + keyboard listener).
+### Pane navigation (intra-pane, vim-style ⌘⌥arrows)
+- **Why deferred**: Phase 1.4+ scope; click-based focus works fine for now.
+- **Trigger to revisit**: Dogfood reveals "I need vim-style focus motions".
+- **Effort estimate**: ~30 min.
 - **Source**: `SHORTCUTS.md` "Planned" section.
 
-### Multi-startup sidebar shortcuts (⌘⇧[ / ⌘⇧])
-- **Why deferred**: Part of Phase 1.4 (Task #10).
-- **Source**: `SHORTCUTS.md`.
+> *Resolved 2026-05-26*: startup-level shortcuts (`⌘1..9`, `⌘⇧[`, `⌘⇧]`) were pulled forward from Task #15 into Task #10 after user reported friction during dogfood. See `SHORTCUTS.md` "Startup navigation" section.
 
 ### Pane number badges (show 1/2/3 corners)
 - **Why deferred**: Helps with future ⌘1..9 shortcut. Tmux index style.

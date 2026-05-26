@@ -14,6 +14,14 @@
 | `⌘W` | Close focused pane (destroys xterm + PTY + tmux session) | macOS-wide convention |
 | **Mouse click** on any pane | Move focus to that pane (blue 2px outline shows focus) | Universal |
 
+## Startup navigation (sidebar)
+
+| Shortcut | Action | Source |
+|---|---|---|
+| `⌘1` .. `⌘9` | Switch to startup by sidebar index (1 = first, 2 = second, ...) | VS Code / Chrome tab convention |
+| `⌘⇧[` | Previous startup (wraps around) | iTerm2 tab convention |
+| `⌘⇧]` | Next startup (wraps around) | iTerm2 tab convention |
+
 > New pane created by Split/Stack **automatically gets focus** — matches iTerm/VS Code behavior.
 
 ---
@@ -55,9 +63,7 @@ Each pane is backed by a tmux session named `dalkkak-<pane-id>`. Standard tmux p
 
 | Shortcut | Action | When |
 |---|---|---|
-| `⌘1`..`⌘9` | Focus pane by visible index | Phase 1.4 |
-| `⌘⌥→ ← ↑ ↓` | Move focus to neighbor pane (vim-style) | Phase 1.4 |
-| `⌘⇧[` / `⌘⇧]` | Previous / next startup (sidebar nav) | Phase 1.4 |
+| `⌘⌥→ ← ↑ ↓` | Move focus to neighbor pane (vim-style) | Phase 1.4+ |
 | `⌘N` | New startup | Phase 1.4 |
 | `⌘,` | Settings | Phase 2 |
 | `⌘K` | Command palette (search panes / startups / actions) | Phase 2 |
