@@ -1,46 +1,51 @@
-//! Tauri entry. Exposes pty_* commands; holds a single PtySession in app state.
+//! Tauri entry. Per-pane PTY sessions keyed by string id.
 
 mod pty;
 
+use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::{Manager, State, Window};
 
-/// One PTY session per window (Phase 1.2 — multi-pane comes in 1.3).
-struct PtyState(Mutex<Option<pty::PtySession>>);
+struct PtyState(Mutex<HashMap<String, pty::PtySession>>);
 
 #[tauri::command]
-fn pty_spawn(window: Window, cols: u16, rows: u16, state: State<'_, PtyState>) -> Result<(), String> {
-    let session = pty::spawn(window, cols, rows)?;
-    let mut guard = state.0.lock().map_err(|e| e.to_string())?;
-    *guard = Some(session);
+fn pty_spawn(
+    window: Window,
+    id: String,
+    cols: u16,
+    rows: u16,
+    state: State<'_, PtyState>,
+) -> Result<(), String> {
+    let session = pty::spawn(window, id.clone(), cols, rows)?;
+    let mut map = state.0.lock().map_err(|e| e.to_string())?;
+    map.insert(id, session);
     Ok(())
 }
 
 #[tauri::command]
-fn pty_write(input: String, state: State<'_, PtyState>) -> Result<(), String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    if let Some(session) = guard.as_ref() {
+fn pty_write(id: String, input: String, state: State<'_, PtyState>) -> Result<(), String> {
+    let map = state.0.lock().map_err(|e| e.to_string())?;
+    if let Some(session) = map.get(&id) {
         session.write(input.as_bytes())?;
     }
     Ok(())
 }
 
 #[tauri::command]
-fn pty_resize(cols: u16, rows: u16, state: State<'_, PtyState>) -> Result<(), String> {
-    let guard = state.0.lock().map_err(|e| e.to_string())?;
-    if let Some(session) = guard.as_ref() {
+fn pty_resize(id: String, cols: u16, rows: u16, state: State<'_, PtyState>) -> Result<(), String> {
+    let map = state.0.lock().map_err(|e| e.to_string())?;
+    if let Some(session) = map.get(&id) {
         session.resize(cols, rows)?;
     }
     Ok(())
 }
 
 #[tauri::command]
-fn pty_kill(state: State<'_, PtyState>) -> Result<(), String> {
-    let mut guard = state.0.lock().map_err(|e| e.to_string())?;
-    if let Some(session) = guard.as_ref() {
+fn pty_kill(id: String, state: State<'_, PtyState>) -> Result<(), String> {
+    let mut map = state.0.lock().map_err(|e| e.to_string())?;
+    if let Some(session) = map.remove(&id) {
         let _ = session.kill();
     }
-    *guard = None;
     Ok(())
 }
 
@@ -49,7 +54,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            app.manage(PtyState(Mutex::new(None)));
+            app.manage(PtyState(Mutex::new(HashMap::new())));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

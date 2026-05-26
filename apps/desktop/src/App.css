@@ -5,12 +5,62 @@ html, body, #root {
   width: 100vw;
   background: #0f172a;
   overflow: hidden;
+  color: #e2e8f0;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+  font-size: 12px;
+}
+
+.brand {
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  margin-right: 12px;
+  color: #93c5fd;
+}
+
+.toolbar button {
+  background: #334155;
+  color: #e2e8f0;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.toolbar button:hover {
+  background: #475569;
+}
+
+.mosaic-host {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.mosaic-host > .mosaic {
+  background: #0f172a;
 }
 
 .terminal-host {
-  width: 100vw;
-  height: 100vh;
-  padding: 8px;
+  width: 100%;
+  height: 100%;
+  padding: 6px;
   box-sizing: border-box;
   background: #0f172a;
 }
@@ -20,4 +70,45 @@ html, body, #root {
 .terminal-host .xterm-screen {
   height: 100% !important;
   width: 100% !important;
+}
+
+/* react-mosaic dark theme */
+.mosaic-window {
+  box-shadow: none !important;
+}
+
+.mosaic-window > .mosaic-window-toolbar {
+  background: #1e293b !important;
+  color: #94a3b8 !important;
+  border-bottom: 1px solid #334155 !important;
+  font-family: Menlo, monospace;
+  font-size: 11px;
+  min-height: 22px !important;
+  height: 22px !important;
+}
+
+.mosaic-window > .mosaic-window-toolbar .mosaic-window-title {
+  color: #94a3b8 !important;
+  padding-left: 8px;
+}
+
+.mosaic-window > .mosaic-window-body {
+  background: #0f172a !important;
+}
+
+.mosaic-split {
+  background: #334155 !important;
+}
+
+.mosaic-split:hover {
+  background: #475569 !important;
+}
+
+.mosaic-tile {
+  margin: 1px !important;
+}
+
+.mosaic-zero-state {
+  background: #0f172a !important;
+  color: #94a3b8 !important;
 }

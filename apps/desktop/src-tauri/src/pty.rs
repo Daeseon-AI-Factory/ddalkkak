@@ -1,13 +1,21 @@
-//! PTY backend — spawn a shell, stream stdout to the webview, accept input.
+//! PTY backend — spawn a shell per pane id, stream stdout to the webview, accept input.
 //!
 //! Uses `portable-pty` (same crate as Warp, WezTerm) for cross-platform PTY.
+//! Each `PtySession` is owned by a string id (one per pane).
 
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
+use serde::Serialize;
 use std::io::{Read, Write};
 use std::sync::Mutex;
 use tauri::{Emitter, Window};
 
-/// Holds the live PTY for the current pane.
+/// Event payload sent from Rust to the webview for every chunk of PTY stdout.
+#[derive(Serialize, Clone)]
+struct PtyOutputEvent {
+    id: String,
+    data: String,
+}
+
 pub struct PtySession {
     master: Mutex<Box<dyn MasterPty + Send>>,
     writer: Mutex<Box<dyn Write + Send>>,
@@ -34,33 +42,21 @@ impl PtySession {
     }
 }
 
-/// Spawn a shell PTY. stdout is streamed to the renderer via `pty-output` event.
-pub fn spawn(window: Window, cols: u16, rows: u16) -> Result<PtySession, String> {
-    // Guard against pathological sizes (xterm not yet fit during a fast mount).
+pub fn spawn(window: Window, id: String, cols: u16, rows: u16) -> Result<PtySession, String> {
     let cols = if cols == 0 { 80 } else { cols };
     let rows = if rows == 0 { 24 } else { rows };
 
     let pty_system = native_pty_system();
     let pair = pty_system
-        .openpty(PtySize {
-            cols,
-            rows,
-            pixel_width: 0,
-            pixel_height: 0,
-        })
+        .openpty(PtySize { cols, rows, pixel_width: 0, pixel_height: 0 })
         .map_err(|e| e.to_string())?;
 
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
     let mut cmd = CommandBuilder::new(shell);
 
-    // **Critical for TUI apps (Claude Code, vim, etc.):** advertise the terminal type.
-    // Without this, capability queries (DA1/DA2/DECRQM/DSR) hang waiting for a reply that
-    // never comes; many TUIs time out at ~10-15s and fall back to a minimal mode.
+    // RULE #5b — explicit env hygiene
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
-
-    // Tauri GUI apps don't inherit a login shell's environment cleanly. Forward
-    // the common interactive-shell vars explicitly so PATH/locale/etc. behave normally.
     for var in [
         "PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "LC_CTYPE",
         "TZ", "SHELL", "PWD", "TMPDIR",
@@ -69,27 +65,26 @@ pub fn spawn(window: Window, cols: u16, rows: u16) -> Result<PtySession, String>
             cmd.env(var, val);
         }
     }
-
-    // Start in $HOME — feels native, and avoids ending up in the bundle dir.
     if let Ok(home) = std::env::var("HOME") {
         cmd.cwd(home);
     }
 
     let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
-    drop(pair.slave); // not needed after spawn
+    drop(pair.slave);
 
     let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
     let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
 
-    // Background read loop: PTY stdout -> tauri event
+    // Background read loop — emit to "pty-output" with { id, data } payload.
     std::thread::spawn(move || {
         let mut buf = [0u8; 4096];
         loop {
             match reader.read(&mut buf) {
-                Ok(0) => break, // EOF
+                Ok(0) => break,
                 Ok(n) => {
                     let chunk = String::from_utf8_lossy(&buf[..n]).into_owned();
-                    if window.emit("pty-output", chunk).is_err() {
+                    let event = PtyOutputEvent { id: id.clone(), data: chunk };
+                    if window.emit("pty-output", event).is_err() {
                         break;
                     }
                 }
