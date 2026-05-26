@@ -98,3 +98,50 @@ Key numbers (memorize for fast pitches):
 ---
 
 <!-- New entries below this line. Use the template at the top. -->
+
+## 2026-05-26 — Phase 1.0 Tauri scaffold landed (Task #12)
+
+### 🔧 Engineering
+
+- Installed Rust 1.95.0 + Cargo 1.95.0 via rustup (`sh.rustup.rs`, profile=minimal, default-toolchain=stable, aarch64-apple-darwin).
+- Removed `apps/web` and `apps/api` placeholders from initial v2 bootstrap (commit `a4d2295`).
+- Scaffolded Tauri 2.x at `apps/desktop` via `pnpm create tauri-app --yes --template react-ts --manager pnpm --identifier ai.ddalkkak.desktop`. 37 files: React+Vite renderer, Cargo.toml + default `main.rs`/`lib.rs`, `tauri.conf.json`, full icon set (icns/ico/PNG variants), capabilities/default.json. Commit `e942483`.
+- `pnpm install` at root — pnpm workspaces picked up `apps/desktop` automatically (8 workspace projects now, 75 new packages, 20.7s).
+- Verified `pnpm tauri --version` → `tauri-cli 2.11.2`.
+- Added Rust crates to `apps/desktop/src-tauri/Cargo.toml` via `cargo add`:
+  - `portable-pty` — PTY backend (VS Code-quality, used by Warp/WezTerm)
+  - `tokio` with features `rt-multi-thread, macros, process, io-util, sync` — async runtime + subprocess (for tmux)
+  - `serde` with feature `derive` — JSON (de)serialization for Tauri commands
+- Native window verification deferred to user (`cd apps/desktop && pnpm tauri dev` triggers macOS WebKit window — model can't see GUI).
+- `tauri` 2.x already in Cargo.toml default; no version override needed.
+
+### 💬 Raw
+
+드디어 코드 단계 진입. 16+시간 문서/계획만 하다가 갑갑했는데, 막상 Rust install + Tauri scaffold는 5분이면 끝났음. Rust install이 가장 부담스러웠는데 home 디렉토리에 깔리고 reversible이라 결국 부담 적었음. `rustc 1.95.0` 깨끗하게 잡혔음.
+
+Tauri scaffold가 인상적으로 깔끔함. boilerplate가 *진짜로* minimal — 37 file 중 절반은 icons. Cargo.toml, main.rs, lib.rs는 hello-world 수준. Tauri 2.x가 정리가 잘 되어있음.
+
+이제 native window 한 번 띄워보고 (사용자가 확인) Task #8 (PTY pane) 진입. PTY pane이 우리 product의 *진짜 첫 기능*. portable-pty + xterm.js를 Tauri events로 연결하는 게 사실상 entire-product의 backbone.
+
+`pnpm install` 20초 걸린 거 보고 잠깐 흠칫했는데 (Tauri Rust deps는 cargo build 시점에 따로 받으니 별개), 그 다음 cargo add 3개 instant. 다음 `pnpm tauri dev` 첫 실행이 cargo build를 트리거할 거고 — 그건 처음 1-2분 걸림 (Rust 컴파일). 그 후로는 incremental.
+
+### 📣 Marketing
+
+> **"DalkkakAI v2.1 — Tauri 2.x scaffold landed. Rust backend (portable-pty, tokio, serde) ready for PTY work. First native window: hours away."**
+
+Talking points:
+
+- **"Decision to scaffold: under 24 hours."** From "should we pivot to Tauri?" (May 25) to running scaffold on disk (May 26). Solo + AI-pair execution speed.
+- **"Modern stack from line one."** Rust 1.95.0, Tauri 2.11.2, React 18 + Vite, TypeScript strict. No legacy baggage — `old_repo/` keeps history but the new tree is clean.
+- **"Zero manual Tauri config."** `pnpm create tauri-app` scaffolded 37 files including full cross-platform icon set. Production-ready bundling on day zero.
+- **"PTY-first stack."** portable-pty (same crate used by Warp and WezTerm) chosen over Node.js `node-pty` route — better cross-platform, better Rust integration.
+
+Tagline: *"From pivot to scaffold in one day."*
+
+Numbers worth quoting:
+
+- Rust 1.95.0 / Tauri 2.11.2 (current as of May 2026)
+- 37 files scaffolded
+- 20.7s `pnpm install` for 75 packages
+- Commits: a4d2295 (placeholder removal) + e942483 (scaffold)
+
