@@ -262,3 +262,177 @@ html, body, #root {
   background: #7f1d1d;
   color: #fee2e2;
 }
+
+/* ─── Toolbar enhancement (active startup foreground) ────────────────────── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.brand-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-app {
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: #93c5fd;
+  font-size: 13px;
+}
+
+.brand-divider {
+  color: #475569;
+  font-weight: 400;
+}
+
+.brand-startup {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.brand-emoji {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.brand-name {
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.brand-meta {
+  font-size: 11px;
+  color: #64748b;
+  padding-left: 4px;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ─── Onboarding overlay (first-launch hint) ─────────────────────────────── */
+.onboarding-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: dalkkak-fade-in 120ms ease-out;
+}
+
+@keyframes dalkkak-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.onboarding-card {
+  width: 520px;
+  max-width: calc(100vw - 80px);
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 14px;
+  padding: 28px 32px;
+  color: #e2e8f0;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.onboarding-card h2 {
+  margin: 0 0 8px 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.onboarding-card > p {
+  margin: 0 0 20px 0;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.onboarding-section {
+  margin-bottom: 16px;
+}
+
+.onboarding-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #64748b;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.onboarding-section ul {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.onboarding-section li {
+  padding: 4px 0;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.onboarding-section code {
+  background: #0f172a;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: Menlo, "JetBrains Mono", monospace;
+  font-size: 12px;
+  color: #93c5fd;
+}
+
+kbd {
+  display: inline-block;
+  background: #334155;
+  border: 1px solid #475569;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-family: Menlo, "JetBrains Mono", monospace;
+  font-size: 11px;
+  color: #e2e8f0;
+  margin: 0 2px;
+}
+
+.onboarding-dismiss {
+  display: block;
+  width: 100%;
+  margin-top: 20px;
+  padding: 10px 16px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 80ms ease-out;
+}
+
+.onboarding-dismiss:hover {
+  background: #2563eb;
+}
+
+.onboarding-foot {
+  margin-top: 12px;
+  font-size: 11px;
+  color: #64748b;
+  text-align: center;
+}
+.onboarding-foot code {
+  color: #94a3b8;
+}

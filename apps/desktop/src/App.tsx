@@ -120,6 +120,14 @@ export default function App() {
   const [layout, setLayout] = useState<MosaicNode<PaneId> | null>(null);
   const [focusedId, setFocusedId] = useState<PaneId | null>(null);
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(
+    () => !localStorage.getItem("dalkkak.onboarded.v1"),
+  );
+
+  const dismissOnboarding = () => {
+    try { localStorage.setItem("dalkkak.onboarded.v1", "1"); } catch {}
+    setShowOnboarding(false);
+  };
 
   // Bootstrap: if no startups exist, create a default one and migrate legacy layout.
   useEffect(() => {
@@ -372,6 +380,10 @@ export default function App() {
   }, [focusedId, layout, startups, activeStartupId]);
 
   const activeStartup = startups.find((s) => s.id === activeStartupId) ?? null;
+  const paneCount = layout ? collectIds(layout).length : 0;
+
+  // Short label for pane header (4 trailing chars of the id, prefixed with startup emoji).
+  const paneLabel = (id: string) => `${activeStartup?.emoji ?? "•"} ${id.slice(-4)}`;
 
   return (
     <div className="app">
@@ -384,20 +396,34 @@ export default function App() {
       />
       <div className="main">
         <div className="toolbar">
-          <span className="brand">
-            {activeStartup ? `${activeStartup.emoji} ${activeStartup.name}` : "DalkkakAI"}
-          </span>
-          <button onClick={() => splitFocused("row")} title="Split focused pane horizontally (⌘D)">⇆ Split</button>
-          <button onClick={() => splitFocused("column")} title="Stack focused pane vertically (⌘⇧D)">⇅ Stack</button>
-          <button className="close" onClick={closeFocused} title="Close focused pane (⌘W)">✕ Close</button>
-          <button onClick={resetLayout} title="Destroy all panes in this startup and start over">⟲ Reset</button>
-          <span className="hint">focus: <code>{focusedId ?? "—"}</code></span>
+          <div className="brand-block">
+            <span className="brand-app">DalkkakAI</span>
+            {activeStartup && (
+              <>
+                <span className="brand-divider">·</span>
+                <span className="brand-startup">
+                  <span className="brand-emoji">{activeStartup.emoji}</span>
+                  <span className="brand-name">{activeStartup.name}</span>
+                </span>
+                <span className="brand-meta">
+                  {paneCount} pane{paneCount !== 1 ? "s" : ""}
+                </span>
+              </>
+            )}
+          </div>
+          <div className="toolbar-actions">
+            <button onClick={() => splitFocused("row")} title="Split focused pane horizontally (⌘D)">⇆ Split</button>
+            <button onClick={() => splitFocused("column")} title="Stack focused pane vertically (⌘⇧D)">⇅ Stack</button>
+            <button className="close" onClick={closeFocused} title="Close focused pane (⌘W)">✕ Close</button>
+            <button onClick={resetLayout} title="Destroy all panes in this startup and start over">⟲ Reset</button>
+          </div>
+          <span className="hint">{focusedId ? <code>{focusedId.slice(-4)}</code> : "—"}</span>
         </div>
         <div className="mosaic-host">
           {layout && (
             <Mosaic<PaneId>
               renderTile={(id, path) => (
-                <MosaicWindow<PaneId> path={path} title={id} toolbarControls={<span />}>
+                <MosaicWindow<PaneId> path={path} title={paneLabel(id)} toolbarControls={<span />}>
                   <TerminalPane
                     id={id}
                     focused={id === focusedId}
@@ -411,6 +437,45 @@ export default function App() {
           )}
         </div>
       </div>
+
+      {showOnboarding && (
+        <div className="onboarding-overlay" onClick={dismissOnboarding}>
+          <div className="onboarding-card" onClick={(e) => e.stopPropagation()}>
+            <h2>👋 Welcome to DalkkakAI</h2>
+            <p>Native multi-pane terminal for running multiple startups in parallel.</p>
+            <div className="onboarding-section">
+              <div className="onboarding-label">Pane operations</div>
+              <ul>
+                <li><kbd>⌘D</kbd> split right</li>
+                <li><kbd>⌘⇧D</kbd> stack below</li>
+                <li><kbd>⌘W</kbd> close focused pane</li>
+                <li>Click any pane → it gets focus (blue outline)</li>
+              </ul>
+            </div>
+            <div className="onboarding-section">
+              <div className="onboarding-label">Startup navigation</div>
+              <ul>
+                <li><kbd>⌘1</kbd>‥<kbd>⌘9</kbd> switch by sidebar index</li>
+                <li><kbd>⌘⇧[</kbd> / <kbd>⌘⇧]</kbd> previous / next</li>
+                <li>Right-click sidebar item → rename / change emoji / delete</li>
+              </ul>
+            </div>
+            <div className="onboarding-section">
+              <div className="onboarding-label">Inside the pane</div>
+              <ul>
+                <li>It's a real shell. Run <code>claude</code>, <code>codex</code>, <code>vim</code>, etc.</li>
+                <li>Each pane is a separate tmux session — sessions survive app restarts.</li>
+              </ul>
+            </div>
+            <button className="onboarding-dismiss" onClick={dismissOnboarding}>
+              Got it — let me in
+            </button>
+            <div className="onboarding-foot">
+              You can find all shortcuts later in <code>docs/SHORTCUTS.md</code>.
+            </div>
+          </div>
+        </div>
+      )}
 
       {contextMenu && (
         <>
