@@ -11,8 +11,117 @@ html, body, #root {
 
 .app {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   height: 100vh;
+  width: 100vw;
+}
+
+/* ─── Sidebar ─────────────────────────────────────────────────────────────── */
+.sidebar {
+  width: 64px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: #0b1220;
+  border-right: 1px solid #1e293b;
+  padding: 8px 0;
+  overflow: hidden;
+}
+
+.sidebar-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 6px;
+}
+
+.startup-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  padding: 6px 4px;
+  cursor: pointer;
+  color: #94a3b8;
+  font-family: inherit;
+  font-size: 9px;
+  line-height: 1.2;
+  transition: background 80ms, border-color 80ms, color 80ms;
+}
+
+.startup-item:hover {
+  background: #1e293b;
+  color: #cbd5e1;
+}
+
+.startup-item.active {
+  border-color: #3b82f6;
+  background: #1e293b;
+  color: #e2e8f0;
+}
+
+.startup-emoji {
+  font-size: 22px;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.startup-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 50px;
+  font-weight: 500;
+}
+
+.sidebar-footer {
+  border-top: 1px solid #1e293b;
+  padding: 8px 6px 0;
+}
+
+.add-startup {
+  width: 100%;
+  background: transparent;
+  border: 1px dashed #334155;
+  color: #64748b;
+  border-radius: 8px;
+  padding: 10px 4px;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: inherit;
+}
+
+.add-startup:hover {
+  border-color: #475569;
+  color: #94a3b8;
+}
+
+.new-startup input {
+  width: 100%;
+  box-sizing: border-box;
+  background: #1e293b;
+  border: 1px solid #3b82f6;
+  border-radius: 6px;
+  color: #e2e8f0;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 6px;
+  outline: none;
+}
+
+/* ─── Main area ──────────────────────────────────────────────────────────── */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .toolbar {
@@ -43,17 +152,9 @@ html, body, #root {
   font-family: inherit;
 }
 
-.toolbar button:hover {
-  background: #475569;
-}
-
-.toolbar button.close {
-  background: #7f1d1d;
-}
-
-.toolbar button.close:hover {
-  background: #991b1b;
-}
+.toolbar button:hover { background: #475569; }
+.toolbar button.close { background: #7f1d1d; }
+.toolbar button.close:hover { background: #991b1b; }
 
 .toolbar .hint {
   margin-left: auto;
@@ -62,10 +163,7 @@ html, body, #root {
   color: #64748b;
   user-select: none;
 }
-
-.toolbar .hint code {
-  color: #94a3b8;
-}
+.toolbar .hint code { color: #94a3b8; }
 
 .mosaic-host {
   flex: 1;
@@ -73,9 +171,7 @@ html, body, #root {
   position: relative;
 }
 
-.mosaic-host > .mosaic {
-  background: #0f172a;
-}
+.mosaic-host > .mosaic { background: #0f172a; }
 
 .terminal-host {
   width: 100%;
@@ -88,9 +184,7 @@ html, body, #root {
   transition: outline-color 80ms ease-out;
 }
 
-.terminal-host.focused {
-  outline-color: #3b82f6;
-}
+.terminal-host.focused { outline-color: #3b82f6; }
 
 .terminal-host .xterm,
 .terminal-host .xterm-viewport,
@@ -100,10 +194,7 @@ html, body, #root {
 }
 
 /* react-mosaic dark theme */
-.mosaic-window {
-  box-shadow: none !important;
-}
-
+.mosaic-window { box-shadow: none !important; }
 .mosaic-window > .mosaic-window-toolbar {
   background: #1e293b !important;
   color: #94a3b8 !important;
@@ -113,29 +204,12 @@ html, body, #root {
   min-height: 22px !important;
   height: 22px !important;
 }
-
 .mosaic-window > .mosaic-window-toolbar .mosaic-window-title {
   color: #94a3b8 !important;
   padding-left: 8px;
 }
-
-.mosaic-window > .mosaic-window-body {
-  background: #0f172a !important;
-}
-
-.mosaic-split {
-  background: #334155 !important;
-}
-
-.mosaic-split:hover {
-  background: #475569 !important;
-}
-
-.mosaic-tile {
-  margin: 1px !important;
-}
-
-.mosaic-zero-state {
-  background: #0f172a !important;
-  color: #94a3b8 !important;
-}
+.mosaic-window > .mosaic-window-body { background: #0f172a !important; }
+.mosaic-split { background: #334155 !important; }
+.mosaic-split:hover { background: #475569 !important; }
+.mosaic-tile { margin: 1px !important; }
+.mosaic-zero-state { background: #0f172a !important; color: #94a3b8 !important; }

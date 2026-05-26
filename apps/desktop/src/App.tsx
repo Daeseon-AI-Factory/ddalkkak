@@ -1,8 +1,19 @@
 import { useEffect, useState } from "react";
 import { Mosaic, MosaicWindow, type MosaicNode } from "react-mosaic-component";
 import "react-mosaic-component/react-mosaic-component.css";
+import { Sidebar } from "./Sidebar";
 import { TerminalPane } from "./TerminalPane";
 import { destroyTerminal } from "./terminalRegistry";
+import {
+  layoutKeyFor,
+  loadActiveStartupId,
+  loadStartups,
+  pickDefaultEmoji,
+  saveActiveStartupId,
+  saveStartups,
+  generateStartupId,
+  type Startup,
+} from "./startups";
 import "./App.css";
 
 type PaneId = string;
@@ -10,23 +21,20 @@ type PaneId = string;
 const generateId = (): PaneId =>
   `pane-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 
-// ─── Persistence (Step D + E) ──────────────────────────────────────────────
-// localStorage holds the MosaicNode tree. tmux server (background daemon)
-// holds the actual shell + Claude/codex processes across app restarts, so
-// reattach is automatic — restoring the tree triggers pty_spawn for each id,
-// which runs `tmux new-session -A -D -s dalkkak-<id>` and reattaches to the
-// existing tmux session if it survived.
-const LAYOUT_KEY = "dalkkak.layout.v1";
-
-function loadLayout(): MosaicNode<PaneId> | null {
+// ─── Layout (per startup) ───────────────────────────────────────────────────
+function loadLayoutFor(startupId: string): MosaicNode<PaneId> | null {
   try {
-    const raw = localStorage.getItem(LAYOUT_KEY);
+    const raw = localStorage.getItem(layoutKeyFor(startupId));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (parsed === null) return null;
     if (typeof parsed === "string") return parsed;
-    // basic shape check on objects
-    if (typeof parsed === "object" && "direction" in parsed && "first" in parsed && "second" in parsed) {
+    if (
+      typeof parsed === "object" &&
+      "direction" in parsed &&
+      "first" in parsed &&
+      "second" in parsed
+    ) {
       return parsed as MosaicNode<PaneId>;
     }
     return null;
@@ -35,16 +43,16 @@ function loadLayout(): MosaicNode<PaneId> | null {
   }
 }
 
-function saveLayout(layout: MosaicNode<PaneId> | null) {
+function saveLayoutFor(startupId: string, layout: MosaicNode<PaneId> | null) {
   try {
-    if (layout === null) localStorage.removeItem(LAYOUT_KEY);
-    else localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout));
+    const key = layoutKeyFor(startupId);
+    if (layout === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(layout));
   } catch {
-    /* full disk / quota: best-effort */
+    /* best-effort */
   }
 }
 
-// ─── Tree ops ──────────────────────────────────────────────────────────────
 function collectIds(node: MosaicNode<PaneId> | null): PaneId[] {
   if (!node) return [];
   if (typeof node === "string") return [node];
@@ -80,19 +88,73 @@ function removeLeaf(
   return { ...node, first, second };
 }
 
+// ─── Migration: old single-layout key → first startup's layout ─────────────
+const LEGACY_LAYOUT_KEY = "dalkkak.layout.v1";
+
+function migrateLegacyLayout(targetStartupId: string) {
+  try {
+    const legacy = localStorage.getItem(LEGACY_LAYOUT_KEY);
+    if (!legacy) return;
+    if (!localStorage.getItem(layoutKeyFor(targetStartupId))) {
+      localStorage.setItem(layoutKeyFor(targetStartupId), legacy);
+    }
+    localStorage.removeItem(LEGACY_LAYOUT_KEY);
+  } catch {
+    /* best-effort */
+  }
+}
+
 // ─── App ───────────────────────────────────────────────────────────────────
 export default function App() {
-  const [layout, setLayout] = useState<MosaicNode<PaneId> | null>(
-    () => loadLayout() ?? generateId(),
+  const [startups, setStartups] = useState<Startup[]>(() => loadStartups());
+  const [activeStartupId, setActiveStartupId] = useState<string | null>(() =>
+    loadActiveStartupId(),
   );
+  const [layout, setLayout] = useState<MosaicNode<PaneId> | null>(null);
   const [focusedId, setFocusedId] = useState<PaneId | null>(null);
 
-  // Persist layout on every change.
+  // Bootstrap: if no startups exist, create a default one and migrate legacy layout.
   useEffect(() => {
-    saveLayout(layout);
-  }, [layout]);
+    if (startups.length === 0) {
+      const first: Startup = {
+        id: generateStartupId(),
+        name: "default",
+        emoji: "🚀",
+        createdAt: Date.now(),
+      };
+      migrateLegacyLayout(first.id);
+      setStartups([first]);
+      setActiveStartupId(first.id);
+      saveStartups([first]);
+      saveActiveStartupId(first.id);
+      return;
+    }
+    if (!activeStartupId || !startups.find((s) => s.id === activeStartupId)) {
+      const first = startups[0];
+      setActiveStartupId(first.id);
+      saveActiveStartupId(first.id);
+    }
+  }, [startups, activeStartupId]);
 
-  // Initialize focus to the first pane on mount or layout change-from-null.
+  // When active startup changes (or on first load), load that startup's layout.
+  useEffect(() => {
+    if (!activeStartupId) {
+      setLayout(null);
+      setFocusedId(null);
+      return;
+    }
+    const restored = loadLayoutFor(activeStartupId) ?? generateId();
+    setLayout(restored);
+    setFocusedId(null); // will be auto-set by the next effect
+  }, [activeStartupId]);
+
+  // Persist layout under the active startup's key.
+  useEffect(() => {
+    if (!activeStartupId) return;
+    saveLayoutFor(activeStartupId, layout);
+  }, [activeStartupId, layout]);
+
+  // Initialize focus to the first pane in current layout.
   useEffect(() => {
     if (!focusedId && layout) {
       const ids = collectIds(layout);
@@ -100,6 +162,22 @@ export default function App() {
     }
   }, [focusedId, layout]);
 
+  // ─── Startup ops ─────────────────────────────────────────────────────────
+  const createStartup = (s: Startup) => {
+    const next = [...startups, s];
+    setStartups(next);
+    saveStartups(next);
+    setActiveStartupId(s.id);
+    saveActiveStartupId(s.id);
+  };
+
+  const selectStartup = (id: string) => {
+    if (id === activeStartupId) return;
+    setActiveStartupId(id);
+    saveActiveStartupId(id);
+  };
+
+  // ─── Pane ops (operate on active startup's layout) ───────────────────────
   const splitFocused = (direction: "row" | "column") => {
     const newId = generateId();
     const target =
@@ -131,6 +209,7 @@ export default function App() {
   };
 
   const resetLayout = () => {
+    if (!layout) return;
     for (const id of collectIds(layout)) {
       void destroyTerminal(id);
     }
@@ -139,7 +218,7 @@ export default function App() {
     setFocusedId(fresh);
   };
 
-  // Keyboard shortcuts — window-level capture so xterm doesn't swallow them.
+  // ─── Keyboard shortcuts ──────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
@@ -157,31 +236,45 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusedId, layout]);
 
+  const activeStartup = startups.find((s) => s.id === activeStartupId) ?? null;
+
   return (
     <div className="app">
-      <div className="toolbar">
-        <span className="brand">DalkkakAI</span>
-        <button onClick={() => splitFocused("row")} title="Split focused pane horizontally (⌘D)">⇆ Split</button>
-        <button onClick={() => splitFocused("column")} title="Stack focused pane vertically (⌘⇧D)">⇅ Stack</button>
-        <button className="close" onClick={closeFocused} title="Close focused pane (⌘W)">✕ Close</button>
-        <button onClick={resetLayout} title="Destroy all panes and start over">⟲ Reset</button>
-        <span className="hint">focus: <code>{focusedId ?? "—"}</code></span>
-      </div>
-      <div className="mosaic-host">
-        <Mosaic<PaneId>
-          renderTile={(id, path) => (
-            <MosaicWindow<PaneId> path={path} title={id} toolbarControls={<span />}>
-              <TerminalPane
-                id={id}
-                focused={id === focusedId}
-                onFocus={() => setFocusedId(id)}
-              />
-            </MosaicWindow>
+      <Sidebar
+        startups={startups}
+        activeId={activeStartupId}
+        onSelect={selectStartup}
+        onCreate={createStartup}
+      />
+      <div className="main">
+        <div className="toolbar">
+          <span className="brand">
+            {activeStartup ? `${activeStartup.emoji} ${activeStartup.name}` : "DalkkakAI"}
+          </span>
+          <button onClick={() => splitFocused("row")} title="Split focused pane horizontally (⌘D)">⇆ Split</button>
+          <button onClick={() => splitFocused("column")} title="Stack focused pane vertically (⌘⇧D)">⇅ Stack</button>
+          <button className="close" onClick={closeFocused} title="Close focused pane (⌘W)">✕ Close</button>
+          <button onClick={resetLayout} title="Destroy all panes in this startup and start over">⟲ Reset</button>
+          <span className="hint">focus: <code>{focusedId ?? "—"}</code></span>
+        </div>
+        <div className="mosaic-host">
+          {layout && (
+            <Mosaic<PaneId>
+              renderTile={(id, path) => (
+                <MosaicWindow<PaneId> path={path} title={id} toolbarControls={<span />}>
+                  <TerminalPane
+                    id={id}
+                    focused={id === focusedId}
+                    onFocus={() => setFocusedId(id)}
+                  />
+                </MosaicWindow>
+              )}
+              value={layout}
+              onChange={setLayout}
+              createNode={generateId}
+            />
           )}
-          value={layout}
-          onChange={setLayout}
-          createNode={generateId}
-        />
+        </div>
       </div>
     </div>
   );
