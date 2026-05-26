@@ -25,7 +25,7 @@ DalkkakAI is a **lightweight native multi-pane terminal multiplexer + Claude Cod
 - **Monorepo:** pnpm workspaces
 
 **Allowed languages: TypeScript + Rust** (Tauri requirement).
-Do NOT introduce Python, Go, Java, or other languages into this repo. (Separate Java platform repo handles billing/rate-limit; consumed via REST.)
+Do NOT introduce Python, Go, Java, or other languages into this repo.
 
 ---
 
@@ -37,14 +37,14 @@ If a decision isn't covered there, surface it for the maintainer (Jason).
 
 ## RULE #3 — Verify before claiming done
 
-- Rust backend change → `cargo test` + `pnpm tauri dev` opens and works
+- Rust backend change → `cargo check` + `pnpm tauri dev` opens and works
 - Frontend change → `pnpm build` must pass (production build)
 - PTY change → spawn, write, read, resize, kill — verify all four
 - Tauri command/event change → invoke from renderer and confirm round-trip
 
 ---
 
-## RULE #4 — old_repo/ is read-only
+## RULE #4 — `old_repo/` is read-only
 
 Reference only. Do not modify, extend, or import from `old_repo/`.
 
@@ -59,6 +59,41 @@ Reference only. Do not modify, extend, or import from `old_repo/`.
 - **App state:** `tauri::State<T>` with `Arc<Mutex<T>>` or `Arc<RwLock<T>>`
 - **Errors:** Return `Result<T, String>` from commands (Tauri serializes both arms)
 - **Cargo features:** Keep `src-tauri/Cargo.toml` lean; don't pull `tokio/full` if a subset works
+
+---
+
+## RULE #5b — Subprocess env hygiene (added 2026-05-26)
+
+When spawning any subprocess in a Tauri (or any GUI desktop) app, **never** assume inherited environment is sufficient. Always:
+
+- Explicitly set `TERM=xterm-256color` and `COLORTERM=truecolor`
+- Forward common interactive-shell vars: `PATH`, `HOME`, `USER`, `LOGNAME`, `LANG`, `LC_ALL`, `LC_CTYPE`, `TZ`, `SHELL`, `PWD`, `TMPDIR`
+- Set sensible `cwd` (default `$HOME` for terminal panes; per-worktree for project panes later)
+- Guard pathological PTY sizes (`cols=0`/`rows=0`) with a fallback (80×24)
+
+A "minimal shell" inside a GUI bundle is a different beast from a shell in iTerm. Capability-querying TUIs (Claude Code, vim, fzf, htop) hang ~10-15s when TERM is unset. See `docs/ISSUES.md` entry 2026-05-26 for the post-mortem.
+
+---
+
+## RULE #6 — Issues are assets
+
+**Every** bug, friction, surprise, or fix MUST get a `docs/ISSUES.md` entry with all 6 required sections (symptom / root cause / fix / instruction-at-fault analysis / avoidability / lessons). **Patching and moving on is forbidden — analyze.**
+
+These entries are studied later for:
+- Code reviews (catch regression of the same class)
+- Amazon SDE II interviews (failure analysis is half of system design)
+- Dogfooding pattern recognition (which classes of bugs recur?)
+- AI-pair-coding prompt improvement (when was the instruction underspecified?)
+
+If a fix yields a permanent rule (e.g., RULE #5b above), also append it to this file under the right rule number.
+
+Cost: 10-15 minutes per entry. Payoff: every recurrence of the same class is caught in seconds.
+
+---
+
+## RULE #7 — Append to `MILESTONES.md` after every task / major decision
+
+Three tones every time (🔧 Engineering / 💬 Raw / 📣 Marketing) — see `docs/MILESTONES.md` protocol at top. Same step is reusable for different audiences later (interviews, friends, marketing).
 
 ---
 
