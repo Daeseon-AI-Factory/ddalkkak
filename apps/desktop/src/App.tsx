@@ -1,51 +1,62 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
+import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { Terminal } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
+import "@xterm/xterm/css/xterm.css";
 import "./App.css";
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+export default function App() {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const termRef = useRef<Terminal | null>(null);
+  const fitRef = useRef<FitAddon | null>(null);
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+  useEffect(() => {
+    if (!containerRef.current) return;
 
-  return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
+    const term = new Terminal({
+      cursorBlink: true,
+      fontFamily: 'Menlo, "JetBrains Mono", "SF Mono", monospace',
+      fontSize: 13,
+      theme: { background: "#0f172a", foreground: "#e2e8f0" },
+    });
+    const fit = new FitAddon();
+    term.loadAddon(fit);
+    term.open(containerRef.current);
+    fit.fit();
 
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
+    termRef.current = term;
+    fitRef.current = fit;
 
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
-  );
+    let unlisten: UnlistenFn | undefined;
+    let killed = false;
+
+    (async () => {
+      unlisten = await listen<string>("pty-output", (event) => {
+        term.write(event.payload);
+      });
+
+      await invoke("pty_spawn", { cols: term.cols, rows: term.rows });
+
+      term.onData((data) => {
+        invoke("pty_write", { input: data }).catch(console.error);
+      });
+    })();
+
+    const handleResize = () => {
+      fit.fit();
+      invoke("pty_resize", { cols: term.cols, rows: term.rows }).catch(console.error);
+    };
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      killed = true;
+      window.removeEventListener("resize", handleResize);
+      if (unlisten) unlisten();
+      invoke("pty_kill").catch(() => {});
+      term.dispose();
+    };
+  }, []);
+
+  return <div ref={containerRef} className="terminal-host" />;
 }
-
-export default App;
