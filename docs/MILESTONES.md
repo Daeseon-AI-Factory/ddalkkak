@@ -145,3 +145,59 @@ Numbers worth quoting:
 - 20.7s `pnpm install` for 75 packages
 - Commits: a4d2295 (placeholder removal) + e942483 (scaffold)
 
+
+## 2026-05-26 — Phase 1.2 Single PTY pane working (Task #8)
+
+### 🔧 Engineering
+
+- **`apps/desktop/src-tauri/src/pty.rs`** (~90 lines): `PtySession` struct holding `master`, `writer`, `child` (each in `Mutex` for cross-thread shared access). `spawn(window, cols, rows)` opens a PTY via `portable_pty::native_pty_system()`, spawns `$SHELL` (defaults to bash), and launches a background thread that reads stdout in 4KB chunks and emits `pty-output` events to the renderer.
+- **`apps/desktop/src-tauri/src/lib.rs`**: 4 `#[tauri::command]` exports — `pty_spawn`, `pty_write(input)`, `pty_resize(cols, rows)`, `pty_kill`. State held in `PtyState(Mutex<Option<PtySession>>)`, registered via `app.manage()` in setup hook.
+- **`apps/desktop/src/App.tsx`**: xterm.js `Terminal` + `FitAddon`. `useEffect` boots an async block: `listen('pty-output')` → `term.write`; `invoke('pty_spawn', { cols, rows })`; `term.onData` → `invoke('pty_write')`; window `resize` → `fit()` + `invoke('pty_resize')`. Cleanup: unlisten + `pty_kill` + `term.dispose`.
+- **`apps/desktop/src/App.css`**: full-viewport (`100vw × 100vh`) terminal host, slate-900 background.
+- **Renderer deps added**: `@xterm/xterm@6.0.0`, `@xterm/addon-fit@0.11.0`, `@tauri-apps/api`.
+- **Verification**:
+  - `cargo check`: passed cold in **40.89s** (first-time crate compilation).
+  - `pnpm tauri dev`: native window opens with a working terminal.
+  - `ls`, `echo`, and `claude` (Claude Code itself) confirmed running inside the pane.
+- **Commit**: `3545057`.
+- **Tauri 2.x patterns confirmed**: `Emitter` trait on `Window` for event emit, `State<'_, T>` for command-time state access, `Manager::manage` in `setup` hook.
+
+### 💬 Raw
+
+처음으로 *코드가 동작하는 순간*. 16시간 reframe 했던 product가 진짜 윈도우 띄우고 PTY에 입력 받고 출력하는 native app이 됨.
+
+`portable-pty` 처음 써봤는데 API 깔끔함 — Warp/WezTerm이 왜 쓰는지 알겠음. `cargo check`가 첫 시도에 통과해서 솔직히 놀랐음 (Rust 거의 처음 짜는 거라 fail 예상). Tauri 2.x의 `generate_handler!` macro가 깔끔하고 `Emitter` trait도 직관적. Rust ownership에서 살짝 헷갈렸던 부분은 `Mutex<Box<dyn Trait + Send>>` — child + master + writer를 각각 따로 Mutex로 감싸서 thread safety + interior mutability 둘 다 챙김.
+
+가장 큰 깨달음: **본인 Claude Code (`claude` 명령) 가 DalkkakAI 안에서 띄워짐**. Single pane이고 multi-startup 없지만, 개념 증명은 완료. 본인이 어차피 `pnpm tauri dev` 켜둔 채로 거기서 `claude` 띄우고 작업하면 — 12 데스크톱 중 *1 데스크톱*은 즉시 ditch 가능. 부분 dogfood 시작 가능 시점.
+
+Dev mode 처음 cold build 1-2분 — 본인이 살짝 답답해함. 정상. Phase 1 끝나면 release build로 `.app` 만들어 instant 띄움. 지금은 hot reload 위해 dev session 켜둔 채 작업하면 됨.
+
+### 📣 Marketing
+
+> **"DalkkakAI v0.0.1 — first native PTY pane runs inside Tauri 2.x. Bash, Claude Code, anything that needs a TTY — works."**
+
+Talking points:
+
+1. **"From pivot to working PTY pane in <48 hours."** Decision to use Tauri (May 25) → working terminal in a native window (May 26). Solo + AI-pair execution speed.
+2. **"`portable-pty` + `xterm.js` bridge in ~90 lines of Rust."** Production-grade terminal infrastructure with minimal code, leveraging the same crate Warp and WezTerm use at scale.
+3. **"Same PTY engine as Warp and WezTerm."** Choosing infrastructure that's already battle-tested.
+4. **"Single pane today, multi-pane tomorrow."** Phase 1.3 brings `react-mosaic` + tmux persistence.
+
+Comparisons:
+
+- "VS Code's xterm.js running inside Tauri instead of Electron." — same renderer-side terminal stack, 1/15 the binary size.
+- "Like attaching a tmux window to a SwiftUI shell — except cross-platform and built in a day."
+
+Tagline candidates:
+
+- *"It runs. Type. Watch."*
+- *"First TTY, then 12 of them."*
+- *"Hello, bash. Hello, Claude Code."*
+
+Numbers worth quoting:
+
+- 40.89s cold `cargo check` (incremental rebuilds: 5-30s)
+- ~90 lines `pty.rs`, ~50 lines `lib.rs` commands
+- 4 Tauri commands: spawn / write / resize / kill
+- Dependencies: `@xterm/xterm@6.0.0`, `portable-pty@0.9.0`, `tokio@1.52.3`, `tauri@2.x`
+
