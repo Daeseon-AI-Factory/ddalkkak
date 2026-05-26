@@ -2,15 +2,19 @@ import { useState } from "react";
 import { Mosaic, MosaicWindow, type MosaicNode } from "react-mosaic-component";
 import "react-mosaic-component/react-mosaic-component.css";
 import { TerminalPane } from "./TerminalPane";
+import { destroyTerminal } from "./terminalRegistry";
 import "./App.css";
 
 type PaneId = string;
 
-// Robust ID generation — timestamp + random suffix. Avoids collisions across
-// React strict-mode double-invokes and rapid clicks. Counter approaches are
-// footguns in concurrent rendering.
 const generateId = (): PaneId =>
   `pane-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+
+function collectIds(node: MosaicNode<PaneId> | null): PaneId[] {
+  if (!node) return [];
+  if (typeof node === "string") return [node];
+  return [...collectIds(node.first), ...collectIds(node.second)];
+}
 
 export default function App() {
   const [layout, setLayout] = useState<MosaicNode<PaneId> | null>(() => generateId());
@@ -26,6 +30,10 @@ export default function App() {
   };
 
   const resetLayout = () => {
+    // Explicit destruction — only happens on Reset, not on every split.
+    for (const id of collectIds(layout)) {
+      void destroyTerminal(id);
+    }
     setLayout(generateId());
   };
 
@@ -35,7 +43,7 @@ export default function App() {
         <span className="brand">DalkkakAI</span>
         <button onClick={addPaneRow} title="Split horizontally (add pane to the right)">⇆ Split</button>
         <button onClick={addPaneColumn} title="Split vertically (add pane below)">⇅ Stack</button>
-        <button onClick={resetLayout} title="Reset to single pane">⟲ Reset</button>
+        <button onClick={resetLayout} title="Destroy all panes and start over">⟲ Reset</button>
       </div>
       <div className="mosaic-host">
         <Mosaic<PaneId>

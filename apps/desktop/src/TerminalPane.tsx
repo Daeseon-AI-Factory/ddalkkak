@@ -1,17 +1,10 @@
 import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { Terminal } from "@xterm/xterm";
-import { FitAddon } from "@xterm/addon-fit";
+import { ensureSpawned, getOrCreateTerminal } from "./terminalRegistry";
 import "@xterm/xterm/css/xterm.css";
 
 interface Props {
   id: string;
-}
-
-interface PtyOutputEvent {
-  id: string;
-  data: string;
 }
 
 export function TerminalPane({ id }: Props) {
@@ -19,53 +12,50 @@ export function TerminalPane({ id }: Props) {
 
   useEffect(() => {
     if (!containerRef.current) return;
+    const entry = getOrCreateTerminal(id);
+    const { term, fit } = entry;
+    const container = containerRef.current;
 
-    const term = new Terminal({
-      cursorBlink: true,
-      fontFamily: 'Menlo, "JetBrains Mono", "SF Mono", monospace',
-      fontSize: 13,
-      theme: { background: "#0f172a", foreground: "#e2e8f0" },
-    });
-    const fit = new FitAddon();
-    term.loadAddon(fit);
-    term.open(containerRef.current);
-    fit.fit();
+    // (Re)attach the terminal's DOM to this container.
+    //   - First mount of `id`: term.element is undefined → term.open(container)
+    //     creates the internal DOM under `container`.
+    //   - Remount (Mosaic split caused unmount/remount): term.element exists
+    //     in a previous orphaned parent. Move it to the new container.
+    //     This preserves all internal xterm state (buffer, cursor, scroll).
+    if (term.element) {
+      container.appendChild(term.element);
+    } else {
+      term.open(container);
+    }
 
-    let unlisten: UnlistenFn | undefined;
-    let resizeObserver: ResizeObserver | undefined;
-
-    (async () => {
-      unlisten = await listen<PtyOutputEvent>("pty-output", (event) => {
-        if (event.payload.id === id) {
-          term.write(event.payload.data);
-        }
-      });
-
-      await invoke("pty_spawn", { id, cols: term.cols, rows: term.rows });
-
-      term.onData((data) => {
-        invoke("pty_write", { id, input: data }).catch(console.error);
-      });
-    })();
-
-    const doResize = () => {
+    // Defer fit + spawn one tick so the container has measured layout.
+    const fitAndSpawn = () => {
       try {
         fit.fit();
-        invoke("pty_resize", { id, cols: term.cols, rows: term.rows }).catch(console.error);
       } catch {
-        /* xterm may not be ready on first call */
+        /* not ready on very first call */
       }
+      void ensureSpawned(id, term.cols, term.rows);
     };
+    queueMicrotask(fitAndSpawn);
 
-    // ResizeObserver per pane is required since each mosaic tile is independently sized.
-    resizeObserver = new ResizeObserver(doResize);
-    if (containerRef.current) resizeObserver.observe(containerRef.current);
+    const ro = new ResizeObserver(() => {
+      try {
+        fit.fit();
+        void invoke("pty_resize", { id, cols: term.cols, rows: term.rows });
+      } catch {
+        /* not ready */
+      }
+    });
+    ro.observe(container);
 
     return () => {
-      if (resizeObserver) resizeObserver.disconnect();
-      if (unlisten) unlisten();
-      invoke("pty_kill", { id }).catch(() => {});
-      term.dispose();
+      // CRITICAL: do NOT call pty_kill or term.dispose here.
+      // Cleanup runs on Mosaic-induced remounts (layout path changes); the
+      // underlying xterm + PTY must survive. The terminal element will be
+      // re-attached on the next mount via the appendChild branch above.
+      // Explicit destruction happens via destroyTerminal() from user actions.
+      ro.disconnect();
     };
   }, [id]);
 
