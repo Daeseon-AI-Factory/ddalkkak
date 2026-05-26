@@ -8,8 +8,6 @@ use std::sync::Mutex;
 use tauri::{Emitter, Window};
 
 /// Holds the live PTY for the current pane.
-/// `master` is kept so we can resize; `writer` is the dedicated stdin handle;
-/// `child` is the spawned shell process (so we can kill it).
 pub struct PtySession {
     master: Mutex<Box<dyn MasterPty + Send>>,
     writer: Mutex<Box<dyn Write + Send>>,
@@ -38,16 +36,47 @@ impl PtySession {
 
 /// Spawn a shell PTY. stdout is streamed to the renderer via `pty-output` event.
 pub fn spawn(window: Window, cols: u16, rows: u16) -> Result<PtySession, String> {
+    // Guard against pathological sizes (xterm not yet fit during a fast mount).
+    let cols = if cols == 0 { 80 } else { cols };
+    let rows = if rows == 0 { 24 } else { rows };
+
     let pty_system = native_pty_system();
     let pair = pty_system
-        .openpty(PtySize { cols, rows, pixel_width: 0, pixel_height: 0 })
+        .openpty(PtySize {
+            cols,
+            rows,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
         .map_err(|e| e.to_string())?;
 
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
-    let cmd = CommandBuilder::new(shell);
+    let mut cmd = CommandBuilder::new(shell);
+
+    // **Critical for TUI apps (Claude Code, vim, etc.):** advertise the terminal type.
+    // Without this, capability queries (DA1/DA2/DECRQM/DSR) hang waiting for a reply that
+    // never comes; many TUIs time out at ~10-15s and fall back to a minimal mode.
+    cmd.env("TERM", "xterm-256color");
+    cmd.env("COLORTERM", "truecolor");
+
+    // Tauri GUI apps don't inherit a login shell's environment cleanly. Forward
+    // the common interactive-shell vars explicitly so PATH/locale/etc. behave normally.
+    for var in [
+        "PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "LC_CTYPE",
+        "TZ", "SHELL", "PWD", "TMPDIR",
+    ] {
+        if let Ok(val) = std::env::var(var) {
+            cmd.env(var, val);
+        }
+    }
+
+    // Start in $HOME — feels native, and avoids ending up in the bundle dir.
+    if let Ok(home) = std::env::var("HOME") {
+        cmd.cwd(home);
+    }
+
     let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
-    // slave is no longer needed after spawn; drop releases the fd
-    drop(pair.slave);
+    drop(pair.slave); // not needed after spawn
 
     let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
     let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
