@@ -246,19 +246,53 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
+
+      // Pane ops
       if (e.key === "d" || e.key === "D") {
         e.preventDefault();
         if (e.shiftKey) splitFocused("column");
         else splitFocused("row");
-      } else if (e.key === "w" || e.key === "W") {
+        return;
+      }
+      if (e.key === "w" || e.key === "W") {
         e.preventDefault();
         closeFocused();
+        return;
+      }
+
+      // Startup switch by index: ⌘1..⌘9
+      if (/^[1-9]$/.test(e.key) && !e.shiftKey) {
+        const idx = parseInt(e.key, 10) - 1;
+        if (idx < startups.length) {
+          e.preventDefault();
+          selectStartup(startups[idx].id);
+        }
+        return;
+      }
+
+      // Previous / next startup: ⌘⇧[ and ⌘⇧]
+      // (macOS keyboard reports e.key as "{" / "}" when Shift is held)
+      if (e.shiftKey && (e.key === "{" || e.key === "[")) {
+        e.preventDefault();
+        if (!activeStartupId || startups.length < 2) return;
+        const i = startups.findIndex((s) => s.id === activeStartupId);
+        const prev = startups[(i - 1 + startups.length) % startups.length];
+        selectStartup(prev.id);
+        return;
+      }
+      if (e.shiftKey && (e.key === "}" || e.key === "]")) {
+        e.preventDefault();
+        if (!activeStartupId || startups.length < 2) return;
+        const i = startups.findIndex((s) => s.id === activeStartupId);
+        const next = startups[(i + 1) % startups.length];
+        selectStartup(next.id);
+        return;
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusedId, layout]);
+  }, [focusedId, layout, startups, activeStartupId]);
 
   const activeStartup = startups.find((s) => s.id === activeStartupId) ?? null;
 
