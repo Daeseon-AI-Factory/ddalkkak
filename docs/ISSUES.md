@@ -204,3 +204,16 @@ The chosen path (Step A+B → discover → Step C) traded one cycle of dogfood-f
 - **RULE #5d added** (CLAUDE.md): PTY EOF must emit a visible marker to the renderer (e.g., `[pane closed]` in yellow). Frozen-pane silence is forbidden.
 - **Id generators**: always use timestamp + random for cross-mount stability. Counter-based generators are footguns.
 - **Acceptance test for PTY work**: split 3+ times; verify each pane unique by id (title); kill a pane; verify visible exit marker; trigger a fail mode; verify visible error message.
+
+---
+
+## Resolution log (2026-05-26 EOD)
+
+| Entry | Status | Resolution |
+|---|---|---|
+| PTY env missing TERM (`claude --resume` ~15s) | ✅ Resolved | `1cfebbc` (env hygiene) |
+| Second pane ~15s delay (hypothesis A/B/C) | ⏸️ Likely resolved indirectly via Step C.3 lifecycle decouple. If still observed after `00498b9` deployment, the cause is user-shell-init slowness — outside our scope. | Open for verification |
+| Split/Stack kills Claude session | ✅ Resolved | `00498b9` — Step C.3, lifecycle decoupled from React |
+| `[exited]` / panes share session | ✅ Resolved | `4ad76e7` (PATH augmentation + bash wrapper) + `00498b9` (the real one, lifecycle) |
+
+**Lesson collected across all four entries**: when fixing layered failures, *measure the actual cause* before stacking defenses. The `[exited]` entry's first fix (`4ad76e7`, PATH+wrapper) was a *correct defense at the wrong layer*. The same symptom continued because the real layer was React lifecycle, not shell environment. **Diagnose first, fix second — even when the fix looks obvious.** Added to AI-pair-coding lessons.

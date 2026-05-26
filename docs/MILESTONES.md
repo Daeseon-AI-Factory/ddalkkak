@@ -201,3 +201,53 @@ Numbers worth quoting:
 - 4 Tauri commands: spawn / write / resize / kill
 - Dependencies: `@xterm/xterm@6.0.0`, `portable-pty@0.9.0`, `tokio@1.52.3`, `tauri@2.x`
 
+
+## 2026-05-26 — Phase 1.3 multi-pane working (Steps A-C, 4 iterations)
+
+### 🔧 Engineering
+
+- **Step A** (commit `b76c956`): per-pane PTY backend. `pty.rs` keyed by id, emits `{id, data}` event payload. `lib.rs` `PtyState(Mutex<HashMap<String, PtySession>>)`.
+- **Step B** (`b76c956`): react-mosaic + TerminalPane component. Toolbar Split / Stack / Reset.
+- **Step C — three iterations on top of the same root cause**:
+  - **C.1** (`d175811`): tmux integration. `tmux new-session -A -D -s dalkkak-<id>` so the *server-side* shell would survive React remount.
+  - **C.2** (`4ad76e7`): 4-layer hardening — `find_tmux()` absolute paths, `augmented_path()` prepends `/opt/homebrew/bin`, `bash -c` wrapper makes tmux failures visible, yellow `[pane closed]` on PTY EOF.
+  - **C.3** (`00498b9`, **the actual fix**): xterm + PTY lifecycle moved OUT of React. New `terminalRegistry.ts` holds a module-level `Map<id, { term, fit, unlisten, spawned }>`. `TerminalPane` attaches `term.element` to its container (or moves it on remount via `appendChild`). `useEffect` cleanup *never* destroys; only `destroyTerminal()` from explicit Reset does.
+- Acceptance verified: Split / Stack with a live `claude` session in the source pane → session survives. Cleanup only on explicit Reset.
+- 3 `ISSUES.md` post-mortems generated along the way (env, `[exited]` + share, lifecycle).
+
+### 💬 Raw
+
+오늘 진짜 카오스였다. Step A+B는 한 번에 깔끔. **Step C에서 3번 iteration**. 매번 본인이 *"이거 이상한데"* 짚어서 fix path 찾았음.
+
+가장 *나쁜 패턴*은 첫 Step C — 한 번에 4 layer 추가 (tmux + bash wrapper + PATH + EOF). **너무 많이 한 번에**. 본인 답답함 누적. 결국 *진짜 fix*는 *완전 다른 layer* (React lifecycle decouple). 4 layer fix들은 맞는 방향이긴 했지만 *진짜 문제 아니었음*. 사용자 시간 1-2시간 더 빼앗음. **사과해야 할 부분**.
+
+배운 점: **incremental + verify each layer**. 한 commit, 한 변경, 한 verify. 못 한 거 아니라 *얕게 검증하며 갔으면 1시간 절약*.
+
+근데 — *iterations 자체가 자산*. ISSUES.md에 3 entries 깊이 분석. Amazon SDE II에서 *failure analysis*로 그대로 사용 가능. 본인이 *왜 이 fix가 작동하는지* 처음부터 끝까지 짚은 거 — 좋은 founder/engineer 자세.
+
+마지막 commit (`00498b9`)은 *VS Code Server 패턴* 정통 구현. 1-2년치 production engineer 경험 압축. 처음부터 그렇게 했어야 했지만 — 결국 거기 도달.
+
+지금 multi-pane이 *실제 작동*. 12 데스크톱 ditch 향해 진짜 시작.
+
+### 📣 Marketing
+
+> **"DalkkakAI multi-pane works — split panes without killing running Claude sessions. Built on the VS Code Server terminal-hosting pattern."**
+
+Talking points:
+
+1. **"From broken to working in 4 iterations, all post-mortem'd."** Step C.1 (tmux) → C.2 (env hardening) → C.3 (lifecycle decouple). Each iteration solved a real problem; only the last solved *the* problem. All three documented as 6-section ISSUES.md post-mortems.
+2. **"xterm + PTY ownership decoupled from React."** Same pattern as VS Code Server, Coder.com, GitHub Codespaces. Pane state survives layout reshuffles. React is just a viewport.
+3. **"3 post-mortems in 1 day, bug-as-asset culture from day one."** Every fix triggers a 6-section entry: symptom / root cause / fix / prompt-quality blame / avoidability / lessons. Permanent rules extracted to CLAUDE.md.
+4. **"Composed primitives: react-mosaic + tmux + portable-pty + our registry."** Best-of-breed, no reinvented wheels.
+
+Tagline candidates:
+- *"Your panes outlive the layout."*
+- *"Split. Without losing your work."*
+- *"VS Code Server pattern. BYO Claude Code."*
+
+Numbers (memorize):
+- 4 commits to land working multi-pane
+- 3 ISSUES.md post-mortems
+- 153 insertions / 51 deletions in the actual fix (`00498b9`)
+- Avg ~30 min per fix iteration including its full post-mortem
+
