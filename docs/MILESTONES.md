@@ -295,3 +295,57 @@ Numbers:
 - 2.82s warm `cargo check` for the Rust change
 - Total Phase 1 commits today: ~20
 
+
+## 2026-05-26 — Phase 1.4 Step 1 (sidebar) + post-dogfood race fix (Task #10 partial)
+
+### 🔧 Engineering
+
+**Phase 1.4 Step 1 — multi-startup sidebar** (commit `bf0bcc4`):
+- `src/startups.ts` (new): `Startup` type (id / name / emoji / createdAt) + localStorage helpers (`loadStartups`, `loadActiveStartupId`, `layoutKeyFor`).
+- `src/Sidebar.tsx` (new): 64px vertical sidebar with emoji+name buttons, active highlight (blue 2px border matching focus indicator), inline `+ New` form (Enter to submit, Esc to cancel).
+- `src/App.tsx`: layout state keyed by `activeStartupId`. Switching → `loadLayoutFor(id)` → `setLayout`. Bootstrap auto-creates `🚀 default` startup on first launch and migrates legacy `dalkkak.layout.v1` key.
+- CSS: dark-theme `.sidebar`, `.startup-item` (with `.active` border), `.add-startup`, `.new-startup` input.
+
+**Dev port** (commit `a14027b`): 1420 → 1430 (1421 → 1431 HMR). Local conflict with another user service.
+
+**Race fix — new-startup layout lost on restart** (commit `51cac0a`):
+- *Symptom*: created new startup via `+ New`, split panes, closed app, reopened → new startup's panes gone. Default unaffected.
+- *Root cause*: classic `useEffect` ordering race. When `activeStartupId` changed, Load and Save effects re-ran in the same flush. Save closed over the stale `layout` (still the previous startup's value, or briefly `null`) and either wrote the wrong layout or `removeItem`'d the key. Default startup escaped because its layout came from `migrateLegacyLayout` — a synchronous write before any effect ran.
+- *Fix — 3 layers defense in depth*: (a) `createStartup` synchronously seeds `saveLayoutFor(s.id, freshLeaf)` BEFORE flipping `activeStartupId`; (b) Load effect's fresh-leaf path also syncs to storage immediately; (c) Save effect explicitly guards `layout === null` so transient null states are never persisted; (d) `saveLayoutFor` type signature refuses null — `removeLayoutFor` is the explicit delete API.
+- `docs/ISSUES.md`: 6-section post-mortem. Scored "foreseeable but not common knowledge" — React `useEffect` + external persistence is a known antipattern; senior engineers catch on review, mid-level may not.
+- `docs/BACKLOG.md`: deferred "migrate to Zustand/Jotai" — if a 3rd race of this class lands, time to drop render-driven persistence entirely.
+
+### 💬 Raw
+
+오늘 합계 *6번째 lifecycle/race fix*. 패턴 명확함: **React useEffect + external persistence = recurring footgun**. Phase 1.3에서 xterm 컴포넌트 lifecycle 한 번 빼냈고, Phase 1.4에서 layout persistence load+save race 또. 동일 family.
+
+해결도 동일 — *render lifecycle에서 sync mutation으로 빼내기*. createStartup이 `setActiveStartupId` 전에 *동기적으로 storage seed*. Save effect가 *transient null* 안 쓰게. Defense in depth — 4 layers (createStartup sync seed, Load fresh-leaf sync seed, Save null guard, saveLayoutFor refuses null). 어느 한 layer만 fail해도 다른 게 막음.
+
+진짜 가치는 *사용자의 dogfood reporting*. "추가한 거 껐다 키니까 다 날아가" 한 줄로 정확한 race scenario 짚힘. Step 1 ship → 즉시 검증 → fix → Step 2 deferred. *Lean cycle*.
+
+BACKLOG에 *Zustand/Jotai migrate*가 들어간 게 의미. 3번째 같은 class race 나오면 *real store* 도입 — 그때까지는 *render-driven으로 버티되 매번 분석*. Cost-aware engineering.
+
+오늘 *24+ commits*. 진짜 카오스인데 *각 commit이 일관된 작은 단위* + *각 fix가 post-mortem 동반*. *문제→fix→learning* 사이클 6번 돌리며 *코드+문서 동시 진화*. Founder-engineer practice의 좋은 sample.
+
+### 📣 Marketing
+
+> **"DalkkakAI Phase 1.4 sidebar + post-dogfood race fix. 6th useEffect-class issue this week, each with full 6-section post-mortem. Bug-as-asset culture in action."**
+
+Talking points:
+
+1. **"6 issues, 6 post-mortems, 6 lessons."** Every fix this week ships with a `docs/ISSUES.md` entry: symptom / root cause / fix / prompt-quality blame / avoidability / lessons. The pattern is now clear: `useEffect` + external persistence is the recurring footgun.
+2. **"Defense in depth, on purpose."** Today's race fix isn't a single patch — synchronous seed in `createStartup`, sync write in load effect's fresh-leaf path, null guard in save effect, type signature refuses null. Each layer alone fixes it; together they make recurrence near-impossible.
+3. **"Pattern recognition compounding."** Phase 1.3 had a lifecycle-decouple fix (xterm out of React). Phase 1.4 race is the same family. `BACKLOG.md` now carries "migrate to Zustand" as the trigger-on-3rd-race policy.
+4. **"User reports → 1-paragraph race scenarios → 3-layer fixes."** This week is what dogfood-driven development actually looks like.
+
+Tagline candidates:
+- *"Every race learned twice."*
+- *"6 post-mortems and counting."*
+- *"Defense in depth, by accident."*
+
+Numbers:
+- 6 `ISSUES.md` entries today
+- 4 layers in the latest race fix
+- 24+ commits across Phase 1.0 → 1.4 in 24h
+- 0 silently-applied workarounds (every fix has an analysis)
+
