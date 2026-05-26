@@ -217,3 +217,27 @@ The chosen path (Step A+B → discover → Step C) traded one cycle of dogfood-f
 | `[exited]` / panes share session | ✅ Resolved | `4ad76e7` (PATH augmentation + bash wrapper) + `00498b9` (the real one, lifecycle) |
 
 **Lesson collected across all four entries**: when fixing layered failures, *measure the actual cause* before stacking defenses. The `[exited]` entry's first fix (`4ad76e7`, PATH+wrapper) was a *correct defense at the wrong layer*. The same symptom continued because the real layer was React lifecycle, not shell environment. **Diagnose first, fix second — even when the fix looks obvious.** Added to AI-pair-coding lessons.
+
+---
+
+## 2026-05-26 (update) — Second-pane-slow entry, post Step C.3
+
+### Follow-up
+After Step C.3 (`00498b9` — xterm/PTY lifecycle decouple), the user reports the slow-second-pane symptom **persists**: opening a new pane and running `claude` / `claude --resume` / `codex` still takes ~15s to become interactive. The lifecycle fix did NOT resolve this — it only fixed the *Split-kills-running-session* problem. Confirms the second-pane delay was always a separate root cause.
+
+### Refined root cause
+**Shell-init slowness, not our PTY bridge.** Every new pane spawns a tmux session, which spawns the user's `$SHELL` interactively, which sources `~/.zshrc` (or `~/.bashrc`). On macOS with Homebrew + oh-my-zsh + nvm + pyenv + brew completions, this routinely takes 10-15s. tmux server is shared, so the *server* starts fast — but each new *session*'s first shell still pays the init cost.
+
+This is consistent with the original Hypothesis A in the prior entry. Independently verifiable via:
+```
+time $SHELL -i -c exit
+```
+inside a slow pane. If close to the observed pane delay → confirmed.
+
+### Possible fixes (none free)
+1. **User-side**: optimize `~/.zshrc` (lazy-load nvm, disable unused oh-my-zsh plugins, use `zinit`/`znap` async loading). 1-2 min of user attention, can cut init from 12s → 1s.
+2. **Product-side (optional, deferred)**: pre-warm one or two idle PTY sessions in the background at app startup. New pane *attaches* to a pre-warmed session instead of cold-spawning. Adds complexity; defer to a later phase.
+3. **Product-side (escape hatch)**: per-pane setting "fast shell" that spawns `bash --norc` instead of `$SHELL -i`. Skip dotfiles. Users who need bare shell get instant; users who want their full env keep it. Optional toggle.
+
+### Status
+**Open, deferred.** Acknowledged as known limitation. Documented for user to either accept (it's their dotfiles) or apply user-side fix. Product-side pre-warm is a future option, not Phase 1.
