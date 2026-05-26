@@ -47,6 +47,26 @@ html, body, #root {
   background: #475569;
 }
 
+.toolbar button.close {
+  background: #7f1d1d;
+}
+
+.toolbar button.close:hover {
+  background: #991b1b;
+}
+
+.toolbar .hint {
+  margin-left: auto;
+  font-family: Menlo, "JetBrains Mono", monospace;
+  font-size: 11px;
+  color: #64748b;
+  user-select: none;
+}
+
+.toolbar .hint code {
+  color: #94a3b8;
+}
+
 .mosaic-host {
   flex: 1;
   overflow: hidden;
@@ -63,6 +83,13 @@ html, body, #root {
   padding: 6px;
   box-sizing: border-box;
   background: #0f172a;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+  transition: outline-color 80ms ease-out;
+}
+
+.terminal-host.focused {
+  outline-color: #3b82f6;
 }
 
 .terminal-host .xterm,
