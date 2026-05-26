@@ -119,6 +119,7 @@ export default function App() {
   );
   const [layout, setLayout] = useState<MosaicNode<PaneId> | null>(null);
   const [focusedId, setFocusedId] = useState<PaneId | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null);
 
   // Bootstrap: if no startups exist, create a default one and migrate legacy layout.
   useEffect(() => {
@@ -198,6 +199,82 @@ export default function App() {
     if (id === activeStartupId) return;
     setActiveStartupId(id);
     saveActiveStartupId(id);
+  };
+
+  // ─── Context menu (right-click on a startup item) ─────────────────────────
+  const openContextMenu = (id: string, x: number, y: number) => {
+    setContextMenu({ id, x, y });
+  };
+
+  const closeContextMenu = () => setContextMenu(null);
+
+  const renameStartup = (id: string) => {
+    const startup = startups.find((s) => s.id === id);
+    if (startup) {
+      const next = window.prompt("New startup name:", startup.name);
+      if (next && next.trim()) {
+        const updated = startups.map((s) =>
+          s.id === id ? { ...s, name: next.trim() } : s,
+        );
+        setStartups(updated);
+        saveStartups(updated);
+      }
+    }
+    closeContextMenu();
+  };
+
+  const changeStartupEmoji = (id: string) => {
+    const startup = startups.find((s) => s.id === id);
+    if (startup) {
+      const next = window.prompt("New emoji (e.g. 🚀 💎 ⚡ 🔥):", startup.emoji);
+      if (next && next.trim()) {
+        const updated = startups.map((s) =>
+          s.id === id ? { ...s, emoji: next.trim() } : s,
+        );
+        setStartups(updated);
+        saveStartups(updated);
+      }
+    }
+    closeContextMenu();
+  };
+
+  const deleteStartup = (id: string) => {
+    const startup = startups.find((s) => s.id === id);
+    if (!startup) {
+      closeContextMenu();
+      return;
+    }
+    if (
+      !window.confirm(
+        `Delete startup "${startup.name}"?\n\nThis destroys all its panes and tmux sessions permanently.`,
+      )
+    ) {
+      closeContextMenu();
+      return;
+    }
+    // Destroy all panes in this startup's stored layout
+    const stored = loadLayoutFor(id);
+    if (stored) {
+      for (const paneId of collectIds(stored)) {
+        void destroyTerminal(paneId);
+      }
+    }
+    removeLayoutFor(id);
+    const next = startups.filter((s) => s.id !== id);
+    setStartups(next);
+    saveStartups(next);
+    // If the deleted one was active, switch focus
+    if (id === activeStartupId) {
+      if (next.length > 0) {
+        setActiveStartupId(next[0].id);
+        saveActiveStartupId(next[0].id);
+      } else {
+        // bootstrap effect will recreate a default startup
+        setActiveStartupId(null);
+        saveActiveStartupId(null);
+      }
+    }
+    closeContextMenu();
   };
 
   // ─── Pane ops (operate on active startup's layout) ───────────────────────
@@ -303,6 +380,7 @@ export default function App() {
         activeId={activeStartupId}
         onSelect={selectStartup}
         onCreate={createStartup}
+        onContextMenu={openContextMenu}
       />
       <div className="main">
         <div className="toolbar">
@@ -329,11 +407,31 @@ export default function App() {
               )}
               value={layout}
               onChange={setLayout}
-              createNode={generateId}
             />
           )}
         </div>
       </div>
+
+      {contextMenu && (
+        <>
+          <div className="context-menu-backdrop" onClick={closeContextMenu} />
+          <div
+            className="context-menu"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button onClick={() => renameStartup(contextMenu.id)}>
+              <span>✏️</span> Rename
+            </button>
+            <button onClick={() => changeStartupEmoji(contextMenu.id)}>
+              <span>🎨</span> Change emoji
+            </button>
+            <button className="danger" onClick={() => deleteStartup(contextMenu.id)}>
+              <span>🗑</span> Delete
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

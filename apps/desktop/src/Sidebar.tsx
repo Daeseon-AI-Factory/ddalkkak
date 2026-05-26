@@ -10,9 +10,10 @@ interface Props {
   activeId: string | null;
   onSelect: (id: string) => void;
   onCreate: (s: Startup) => void;
+  onContextMenu: (id: string, x: number, y: number) => void;
 }
 
-export function Sidebar({ startups, activeId, onSelect, onCreate }: Props) {
+export function Sidebar({ startups, activeId, onSelect, onCreate, onContextMenu }: Props) {
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState("");
 
@@ -36,7 +37,11 @@ export function Sidebar({ startups, activeId, onSelect, onCreate }: Props) {
             key={s.id}
             className={`startup-item ${s.id === activeId ? "active" : ""}`}
             onClick={() => onSelect(s.id)}
-            title={s.name}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              onContextMenu(s.id, e.clientX, e.clientY);
+            }}
+            title={`${s.name} — right-click for options`}
           >
             <span className="startup-emoji">{s.emoji}</span>
             <span className="startup-name">{s.name}</span>

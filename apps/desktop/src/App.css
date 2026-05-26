@@ -213,3 +213,52 @@ html, body, #root {
 .mosaic-split:hover { background: #475569 !important; }
 .mosaic-tile { margin: 1px !important; }
 .mosaic-zero-state { background: #0f172a !important; color: #94a3b8 !important; }
+
+/* ─── Context menu (right-click on a startup item) ──────────────────────── */
+.context-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 1000;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 4px;
+  min-width: 180px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.context-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  color: #e2e8f0;
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.context-menu button:hover {
+  background: #334155;
+}
+
+.context-menu button.danger {
+  color: #fca5a5;
+}
+
+.context-menu button.danger:hover {
+  background: #7f1d1d;
+  color: #fee2e2;
+}
