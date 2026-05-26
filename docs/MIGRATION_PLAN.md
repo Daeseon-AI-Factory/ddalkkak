@@ -151,3 +151,67 @@ docker-compose up
 - `pnpm dev` — apps/web + apps/api 병렬 실행
 - `cd old_repo && docker-compose up` — v1 fallback
 - docs/BLUEPRINT.md = canonical reference
+
+---
+
+## v2.1 amendment — Tauri pivot (May 2026)
+
+After bootstrap commit `d558213`, reality check: **browser sandboxing prohibits PTY/process spawn**. Cloud web-only is technically incapable of solving Jason's daily pain (12 desktops with local Claude Code/Codex). Hello UI works in browser, but the actual product (controlling local processes) cannot.
+
+**Decision:** pivot to **Tauri 2.x (Rust)** native desktop app. Trade-offs:
+- ~10MB binary, 30-80MB memory (vs Electron's 150MB binary, 100-300MB memory)
+- Rust backend (portable-pty + tokio) for PTY/tmux/fs/git
+- macOS WebKit webview (no Chromium bundle)
+- Cloud backend (apps/cloud) retained for auth/sync/advisor only (Phase 1.4+)
+
+### Affected components
+
+| Component | v2.0 (initial bootstrap) | v2.1 (Tauri pivot) |
+|---|---|---|
+| Desktop runtime | None (web app) | Tauri 2.x |
+| Frontend | apps/web (Vite + React standalone) | apps/desktop/src (same code, inside Tauri webview) |
+| Local backend | apps/api (Hono + node-pty planned) | apps/desktop/src-tauri (Rust + portable-pty) |
+| Cloud backend | (mixed into apps/api) | apps/cloud (separated, Phase 1.4+) |
+| Languages | TypeScript only | **TypeScript + Rust** |
+| PTY library | node-pty | portable-pty |
+| Distribution | Browser URL | Tauri DMG/MSI/AppImage + auto-updater |
+
+### Step F: Tauri scaffold (Phase 1.0 — new prerequisite task)
+
+```bash
+# Remove placeholder apps (their content goes into apps/desktop)
+git rm -r apps/web apps/api
+
+# Bootstrap Tauri app
+pnpm create tauri-app apps/desktop --template react-ts --manager pnpm
+
+# Add Rust crates
+cd apps/desktop/src-tauri
+cargo add portable-pty
+cargo add tokio --features rt-multi-thread,macros,process,io-util,sync
+cargo add serde --features derive
+
+# Verify scaffold
+cd /Users/daeseonyoo/Documents/GitHub/ai-product/ddalkkak
+pnpm install
+cd apps/desktop && pnpm tauri dev   # native window should open
+```
+
+### Step G: Restructure Phase 1 tasks
+
+- **Task #8** (Phase 1.2 PTY pane): now Tauri Rust portable-pty + xterm.js streamed via tauri events
+- **Task #9** (Phase 1.3 Multi-pane + tmux): tmux subprocess via Rust `tokio::process`
+- **Task #7** (Auth + DB): moved to Phase 1.4 (cloud backend layer comes later)
+- **New Task #12** (Phase 1.0): Tauri scaffold — blocks Tasks #8, #9
+
+### Files affected in already-committed bootstrap
+
+To be deleted after Task #12 completes:
+- `apps/web/*` (React placeholder — content migrates to apps/desktop/src)
+- `apps/api/*` (Hono placeholder — replaced by Tauri Rust + later apps/cloud)
+
+Unchanged:
+- `packages/*` (all renderer-side libs work inside Tauri webview)
+- `docs/` (this file + BLUEPRINT.md)
+- `old_repo/` (untouched)
+- Root configs (pnpm-workspace.yaml, biome.json, tsconfig.base.json)

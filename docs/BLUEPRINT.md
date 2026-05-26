@@ -2,17 +2,18 @@
 
 > **Canonical product + architecture reference.** Supersedes prior versions of README, SPEC.md, ROADMAP.md, AGENTS.md, COST.md (those are now legacy under `old_repo/`).
 >
-> **Status:** v2 reframe (May 2026). Pre-implementation. New monorepo will be built from scratch using this document as the source of truth.
+> **Status:** v2.1 — Tauri pivot (May 2026). New monorepo from scratch using this document as source of truth.
 
 ---
 
 ## 1. Mission
 
-> **"솔로 indie hacker가 본인 Claude Code/Codex로 여러 service를 동시에 만들고 운영하는 cloud workflow OS."**
+> **"솔로 indie hacker가 본인 Claude Code/Codex로 여러 service를 동시에 만들고 운영하는 native desktop workspace OS."**
 
 핵심 원칙:
 - **We don't call AI.** Users bring their own Claude Code/Codex. We provide the workspace, multi-pane orchestration, and augmentation around their AI.
-- **Cloud-native.** Browser-first. No install. Works on macOS / Windows / Linux / iPad.
+- **Native desktop (Tauri).** Lightweight (~10MB binary, 30-80MB memory). Rust backend for PTY/tmux/file system. Browser sandboxing makes web-only impossible for this use case.
+- **Cloud-augmented (not cloud-bound).** App runs locally; settings, skills, advisor reports sync via cloud backend; auth via Supabase.
 - **Multi-startup first-class.** N startups in one workspace, not per-project.
 - **Built for the founder first.** Jason uses it daily. Other users come later.
 
@@ -20,20 +21,20 @@
 
 ## 2. Why this exists — The founder's pain
 
-Jason is currently running ~**12 macOS desktops** simultaneously while building services:
+Jason runs ~**12 macOS desktops** simultaneously while building services:
 
 ```
-Each desktop holds: Claude Code session, Cursor, Claude.ai tab, terminal
+Each desktop: Claude Code session, Cursor, Claude.ai tab, terminal
 1-3 startups × ~4 tools = ~12 desktops
 ```
 
-Daily flow is exhausting: constant Mission Control switching, lost context, can't tell at a glance which Claude Code is working / idle / errored.
+Daily flow exhausting: constant Mission Control switching, lost context, can't tell at a glance which Claude Code is working / idle / errored.
 
-**MVP success criterion** — literally one sentence:
+**MVP success criterion:**
 
-> **"Jason can replace his 12 desktops with one DalkkakAI screen for a full week."**
+> **"Jason can replace his 12 desktops with one DalkkakAI app for a full week."**
 
-Market, pricing, competitors are secondary to this. If Jason's daily flow doesn't improve, nothing else matters.
+Market, pricing, competitors are secondary to this.
 
 ---
 
@@ -42,116 +43,109 @@ Market, pricing, competitors are secondary to this. If Jason's daily flow doesn'
 | Tier | Who | When |
 |---|---|---|
 | **Primary** | Jason himself (scratch-your-own-itch) | Phase 0-2 |
-| **Secondary** | Other indie hackers (vibe coder ~ senior dev spectrum, ever opened a terminal) | Phase 3+ |
-| **Excluded** | Pure non-technical users (designers/marketers) | Lovable/Bolt territory, not us |
+| **Secondary** | Other indie hackers (vibe coder ~ senior dev, ever opened a terminal) | Phase 3+ |
+| **Excluded** | Pure non-technical users | Lovable/Bolt territory |
 
 ---
 
 ## 4. Product identity & wedge
 
-**One-line category:** *"Cloud-native multi-pane terminal multiplexer + Claude Code augmentation platform for solo indie hackers running multiple startups."*
+**One-line category:** *"Lightweight native multi-pane terminal multiplexer + Claude Code augmentation platform for solo indie hackers running multiple startups."*
 
 ### Competitive landscape
 
 | Product | Strength | Why we're different |
 |---|---|---|
-| **BridgeMind / BridgeSpace** | Same philosophy, 10K Discord, V3 shipped | They're **local desktop**, **per-project**. We're cloud + multi-startup. |
-| **Warp** | Modern terminal + AI | Native, single-session focus. We're cloud + multi-pane + multi-startup. |
-| **GitHub Codespaces / Gitpod** | Cloud dev env | Terminal is secondary, enterprise-targeted. We're terminal-first, indie-targeted. |
-| **VS Code / Cursor** | Editor-centric, AI integrated | Local, editor-first. We're cloud, terminal-first. |
-| **tmux + iTerm** | Power user finale | Local only, no GUI, steep learning curve. We're tmux made visual + cloud. |
-| **Lovable / Bolt / v0** | AI codegen platforms | We don't call AI; users bring their own. Different category entirely. |
+| **BridgeMind / BridgeSpace** | Same philosophy, 10K Discord, V3 shipped | They're **per-project + Electron**. We're **multi-startup + Tauri** (5-10x lighter). |
+| **Warp** | Modern terminal + AI, native Rust | Single-session focus. We're multi-pane multi-startup. |
+| **GitHub Codespaces / Gitpod** | Cloud dev env | Cloud-bound, enterprise. We're local-first. |
+| **VS Code / Cursor** | Editor-centric, AI integrated | Editor-first. We're terminal-first. |
+| **tmux + iTerm** | Power user | Local, no GUI. We're tmux made visual. |
+| **Lovable / Bolt / v0** | AI codegen platforms | We don't call AI; users bring their own. Different category. |
 
-### Our defensible wedge — three differentiators
+### Our defensible wedge
 
-1. **Cloud-native** (everyone competitor above except Codespaces/Gitpod is local)
-2. **Multi-startup as first-class citizen** (BridgeMind/Warp/Cursor are all per-project)
-3. **Claude Code augmentation** (parse output, inject skills, visualize — others give you raw terminal)
+1. **Native lightweight (Tauri)** — vs Electron-based competitors
+2. **Multi-startup as first-class citizen** — vs per-project competitors
+3. **Claude Code augmentation** — vs raw terminal competitors
 
 ---
 
-## 5. Core layers (what DalkkakAI actually does)
+## 5. Core layers
 
 | Layer | Purpose | AI calls? |
 |---|---|---|
-| **1. Cloud terminal multiplexer** | xterm.js + tmux backend, multi-pane visual layout | ❌ Pure logic |
-| **2. Multi-session orchestration** | Git worktree per session, docker preview, WebSocket | ❌ Pure logic |
-| **3. Claude Code augmentation** | Parse "Tool: edit X" / confirm dialogs into friendly UI | △ Pattern matching mostly, AI only at edges |
-| **4. Viz layer** | Architecture / business-flow diagrams (Mermaid, React Flow) | △ Optional (code → diagram) |
-| **5. Skills / templates** | Jason's Claude Code know-how packaged, auto-injected on session start | ❌ Static content + conditional inject |
-| **6. Cross-startup dashboard** | Uptime, metrics, revenue across all startups | ❌ Display only |
-| **6b. Advisor agent** | Daily portfolio change summary | ✅ Uses user's own Claude key (BYO) |
+| **1. Multi-pane terminal multiplexer** | xterm.js + tmux, drag-resize grid | ❌ Pure logic |
+| **2. Multi-session orchestration** | Git worktree per session, file watch, local state | ❌ Pure logic |
+| **3. Claude Code augmentation** | Parse "Tool: edit X" / confirms into friendly UI | △ Pattern matching mostly |
+| **4. Viz layer** | Architecture / flow diagrams (Mermaid, React Flow) | △ Optional |
+| **5. Skills / templates** | Jason's Claude Code know-how packaged, auto-injected | ❌ Static + conditional |
+| **6. Cross-startup dashboard** | Uptime, metrics across startups | ❌ Display only |
+| **6b. Advisor agent (cloud)** | Daily portfolio change summary | ✅ Uses user's own Claude key |
 
-**Bottom line:** 90%+ of DalkkakAI runs without our AI calls. The few AI-touching parts use the Anthropic TypeScript SDK with the user's own key.
+**90%+ runs without our AI calls.** AI parts use user's own key via Anthropic TypeScript SDK.
 
 ---
 
 ## 6. Architectural decisions
 
-### Stack — TypeScript end-to-end
+### Stack — TypeScript renderer + Rust backend (Tauri)
 
 ```
-Frontend:
-  - Vite + React 18 + TypeScript
-  - xterm.js + addons (fit, web-links, attach)
-  - react-mosaic-component (multi-pane grid)
-  - Tailwind CSS + shadcn/ui
-  - TanStack Query (server state)
+Frontend (Tauri renderer / webview):
+  Vite + React 18 + TypeScript
+  xterm.js + addons (fit, web-links)
+  react-mosaic-component (multi-pane grid)
+  Tailwind CSS + shadcn/ui
 
-Backend:
-  - Node.js 22 + TypeScript
-  - Hono (web framework — modern, light, fast) — or Fastify if more battle-tested needed
-  - node-pty (PTY management, same Microsoft team as xterm.js)
-  - ws (WebSocket)
-  - Prisma (ORM)
+Desktop runtime:
+  Tauri 2.x
 
-Database / Auth:
-  - PostgreSQL via Supabase
-  - Supabase Auth (email + OAuth)
+Local backend (Tauri Rust):
+  portable-pty (PTY, cross-platform, VS Code-quality)
+  tokio (async runtime)
+  tokio::process for tmux subprocess
+  git2 or git subprocess (worktree management)
+  serde for JSON
+  tauri::command for frontend ↔ Rust IPC
+  tauri::Window::emit for streaming PTY output
+
+Cloud backend (TypeScript, Phase 1.4+):
+  Node.js 22 + TypeScript
+  Hono on Fly.io
+  Supabase (auth + Postgres)
+  Java platform proxy (billing, rate-limit) via REST + OpenAPI
+
+Cloud DB / Auth:
+  PostgreSQL via Supabase
+  Supabase Auth (Tauri OAuth via tauri-plugin-oauth)
 
 Storage:
-  - Cloudflare R2 (worktree files, build artifacts) — kept from old stack
-  - Local filesystem for hot worktrees
-
-Real-time:
-  - WebSocket (PTY stream both directions)
-  - Server-Sent Events for one-way updates (status pings)
+  Local filesystem (worktrees, panes state)
+  Cloudflare R2 (cloud sync of skills, advisor reports)
 
 Deploy:
-  - Frontend + Backend → Fly.io (multi-region, terminal latency wins)
-  - DB → Supabase
-  - Storage → Cloudflare R2
-
-Tooling:
-  - pnpm + pnpm-workspace.yaml (monorepo)
-  - Turborepo (build caching, parallelism) — optional, add when builds get slow
-  - Biome (linter + formatter, faster than ESLint+Prettier)
-  - Vitest (tests)
-  - Playwright (e2e for terminal interaction)
+  Tauri auto-updater (CDN-hosted releases)
+  Cloud backend → Fly.io
 ```
 
-### Why Node.js (not Python, Go, or Java)
+### Why Tauri (not Electron, not Swift)
 
-- **TypeScript end-to-end with frontend** — no language context switching for solo dev
-- **node-pty + xterm.js** are by the same Microsoft team — dramatically tighter integration than Python's ptyprocess
-- **All major cloud-terminal products use Node.js or Go** (VS Code Server, code-server, ttyd, Coder.com) — Python has essentially no reference implementations in this domain
-- **AI usage in our product is near-zero** — Python's LangGraph/Anthropic SDK advantage no longer applies; Anthropic's TypeScript SDK is first-class
-- **Go and Java**: Go is fine for Phase 3+ (only if a terminal worker becomes the bottleneck at 1K+ concurrent sessions). Java Spring is over-engineered for solo MVP and mismatched for real-time terminal workloads
+- **Memory: 30-80MB (Tauri) vs 100-300MB (Electron)** — critical for multi-pane × multi-startup
+- **Binary: ~10MB (Tauri) vs ~150MB (Electron)**
+- **System WebKit on macOS** — no Chromium bundle; xterm.js validated on WebKit
+- **Rust backend** — best-in-class PTY (portable-pty, used by Warp, WezTerm)
+- **Cross-platform** — macOS / Linux / Windows from one codebase
+- **Auto-updater built-in**
+- Native Swift would lock out Linux/Windows
 
-### Why not bundle everything ourselves — Platform/Product split
+### Why not pure web
 
-Billing, rate limiting, quota tracking, and possibly auth integration are handled by a **separate Java/Spring platform** (Jason's broader infrastructure that serves all his products). DalkkakAI calls this platform via REST.
+Browser sandboxing prohibits direct PTY/process spawn. User's local Claude Code/Codex binaries can't be controlled from a cloud web app. **Web-only is technically incapable of solving Jason's daily pain.**
 
-```
-[DalkkakAI Node.js backend]
-    ↓ HTTPS REST + Bearer token
-[Java Platform — billing, rate-limit, quota]
-    ↓
-[Stripe, Postgres, etc.]
-```
+### Why Platform/Product split
 
-- Phase 0-1: REST + OpenAPI (Spring SpringDoc auto-generates spec → `openapi-typescript` generates TS client in DalkkakAI)
-- Phase 2+: gRPC for hot paths if latency/throughput needs it
+Billing, rate limiting, quota tracking handled by separate **Java/Spring platform**. DalkkakAI calls platform via REST.
 
 ---
 
@@ -160,141 +154,130 @@ Billing, rate limiting, quota tracking, and possibly auth integration are handle
 ```
 ddalkkak/
 ├── apps/
-│   ├── web/                  # Frontend (Vite + React)
-│   │   ├── src/
-│   │   ├── index.html
+│   ├── desktop/                 ← Tauri app (main product)
+│   │   ├── src/                 ← React frontend (Vite renderer)
+│   │   ├── src-tauri/           ← Rust backend
+│   │   │   ├── src/
+│   │   │   │   ├── main.rs
+│   │   │   │   ├── pty.rs       ← portable-pty wrapper
+│   │   │   │   ├── tmux.rs
+│   │   │   │   ├── worktree.rs
+│   │   │   │   └── commands.rs
+│   │   │   ├── Cargo.toml
+│   │   │   └── tauri.conf.json
 │   │   └── package.json
-│   └── api/                  # Backend (Node.js + Hono + node-pty)
-│       ├── src/
-│       └── package.json
-├── packages/
-│   ├── viz/                  # Visualization library (Mermaid + React Flow wrappers)
-│   ├── augmentor/            # Claude Code output parser & friendly UI
-│   ├── skills/               # Jason's Claude Code know-how packs (md/yaml content + loader)
-│   ├── advisor/              # AI calls (Anthropic TS SDK, user's own key)
-│   ├── platform-client/      # Auto-generated TS client for Java platform's OpenAPI spec
-│   └── shared/               # Types, utils, constants
+│   └── cloud/                   ← Hono on Fly.io (Phase 1.4+, placeholder)
+├── packages/                    ← TS shared libs (renderer-side)
+│   ├── viz/  augmentor/  skills/  advisor/  platform-client/  shared/
 ├── docs/
-│   ├── BLUEPRINT.md          # This file — canonical reference
-│   ├── MIGRATION_PLAN.md     # Old Python repo → new monorepo plan
-│   └── (future: SPEC.md, ROADMAP.md rewritten for v2)
-├── old_repo/                 # Frozen Python codebase from v1 — runnable, reference only
-│   └── (all prior files moved here verbatim)
-├── pnpm-workspace.yaml
-├── package.json              # Root, scripts only
-├── biome.json
-├── tsconfig.base.json
-├── .gitignore
-└── README.md                 # New, brief, points to docs/BLUEPRINT.md
+│   ├── BLUEPRINT.md
+│   └── MIGRATION_PLAN.md
+├── old_repo/                    ← Frozen v1 Python (runnable, reference)
+└── (configs: pnpm-workspace.yaml, biome.json, tsconfig.base.json, etc.)
 ```
 
-**Why monorepo + packages structure:**
-- Solo developer: one repo to manage, one install, one CI
-- Type sharing: `packages/shared` provides types both apps consume; `packages/advisor` exports its summary type so `apps/web` renders it with autocomplete
-- Future-proof: any `packages/*` (especially `viz`, `skills`) can be extracted to its own repo + published to npm later with `git subtree split` or `git filter-repo`
+**Migration from prior bootstrap:**
+- `apps/web` and `apps/api` (initial Hello world stubs) will be **superseded by `apps/desktop`**. Their React content moves into apps/desktop/src; Hono stub is replaced by Tauri Rust backend.
+- Cloud backend lives in `apps/cloud` but not active until Phase 1.4.
+- `packages/*` stays unchanged — all renderer-side, works inside Tauri webview.
 
 ---
 
-## 8. Phase plan (high-level)
+## 8. Phase plan
 
-### Phase 0 — Foundation (Week 1-2)
-**Goal:** New monorepo skeleton, dev environment, deployable shell  
-**Success:** `pnpm dev` runs locally; blank UI deployed to a Fly.io URL; CI green
+### Phase 0 — Foundation (completed)
+- ✅ pnpm monorepo skeleton
+- ✅ docs/BLUEPRINT.md, MIGRATION_PLAN.md
+- ✅ old_repo/ preservation
 
-Tasks:
-- pnpm workspace setup
-- apps/web bootstrapped (Vite + xterm.js hello world)
-- apps/api bootstrapped (Hono + a single WebSocket echo route)
-- Supabase project provisioned (auth + DB)
-- Fly.io deploy pipeline (web + api)
-- Biome + Vitest + Playwright configs
+### Phase 1.0 — Tauri scaffold (Week 1, NEW)
+**Goal:** apps/desktop boots as a Tauri app.
+**Success:** `cd apps/desktop && pnpm tauri dev` opens a native window.
 
-### Phase 1 — Core MVP (Week 3-6)
-**Goal:** Multi-pane terminal + multi-startup. Replace Jason's 12 desktops.  
-**Success:** Jason uses DalkkakAI exclusively for a full week of work.
+- Bootstrap Tauri 2.x under apps/desktop
+- Rust deps: portable-pty, tokio, serde
+- Delete apps/web, apps/api (replaced)
+- Move React content into apps/desktop/src
 
-Features:
-- Multi-pane xterm.js grid (react-mosaic, drag-resize)
-- PTY backend per pane (node-pty, tmux for persistence)
-- Session persistence (refresh-safe, server-side tmux sessions)
-- Per-pane metadata header (startup name, pane type, status)
-- Multi-startup sidebar (CRUD, switch, organize)
-- Visual status indicators (●green = Claude active, ◐yellow = idle, ✕red = errored)
-- Auth (Supabase Auth — email login is enough for self)
+### Phase 1.2 — Single PTY pane (Week 2-3)
+**Goal:** xterm.js connected to Rust-spawned PTY via Tauri events.
+**Success:** open app, type `ls`, see output.
 
-### Phase 2 — Augmentation (Week 7-12)
-**Goal:** Make Claude Code output legible. Inject Jason's know-how.  
-**Success:** Jason's per-session Claude Code productivity measurably higher.
+- `src-tauri/src/pty.rs`: portable-pty spawning bash
+- Tauri commands: `pty_spawn`, `pty_write`, `pty_resize`, `pty_kill`
+- Tauri events: stream PTY stdout to webview
+- xterm.js renderer component
 
-Features:
-- Claude Code output parser (`packages/augmentor`) — recognize Tool calls, file edits, confirm dialogs
-- Friendly diff viewer (side-pane shows file changes from Claude)
-- Skill auto-injection (`packages/skills`) — when session starts, paste configured skill pack into Claude Code
-- Inline confirm UI (Claude asks Y/N → render as a button, not raw text)
-- Cursor replacement option: Monaco editor in a pane (read/edit files alongside Claude Code)
+### Phase 1.3 — Multi-pane + tmux persistence (Week 4-5)
+**Goal:** react-mosaic grid, multiple PTYs, tmux sessions survive restart.
 
-### Phase 3 — Multi-startup operations (Month 4+)
-**Goal:** Cross-startup ops layer. Real operator value beyond build.  
-**Success:** Jason's overhead for running N startups decreases meaningfully.
+- react-mosaic-component integration
+- `src-tauri/src/tmux.rs`: spawn/attach tmux sessions
+- Local pane layout persistence (JSON or sqlite)
 
-Features:
-- Architecture viz from code (`packages/viz` — Mermaid auto-generation)
-- Cross-startup uptime monitoring (ping deployed URLs, status dot per startup)
-- Daily advisor summary (`packages/advisor` — Claude API call with portfolio context)
-- Skills marketplace foundation (publish/subscribe to skill packs)
+### Phase 1.4 — Cloud auth + multi-startup sidebar (Week 6-7)
+**Goal:** Supabase auth, multi-startup CRUD with cloud sync.
+
+- apps/cloud Hono backend on Fly.io
+- Supabase project + DB schema (users, startups, sessions)
+- Tauri-side auth flow (tauri-plugin-oauth)
+- Multi-startup sidebar UI
+
+### Phase 1.5 — Dogfood test (Week 8+)
+**Goal:** Jason replaces 12 desktops for 1 full week.
+
+### Phase 2 — Augmentation (Month 3+)
+- Claude Code output parser (packages/augmentor)
+- Diff viewer, friendly confirm UI
+- Skills auto-injection
+
+### Phase 3 — Multi-startup ops (Month 4+)
+- Architecture viz (packages/viz)
+- Cross-startup uptime monitoring
+- Advisor daily summary (cloud)
 
 ### Phase 4 — Beta release (Month 6+)
-**Goal:** First paying users  
-**Success:** 50 paying users, $500+/mo MRR
-
-Features:
-- Onboarding flow for new users
-- Public landing page + waitlist
-- Billing integration via Java platform (subscription tiers: Free / Starter / Growth / Scale)
-- Documentation site
-- Skills marketplace MVP (Jason's published skills available to paid users)
+- Tauri auto-updater release pipeline
+- Public landing
+- Billing via Java platform
 
 ---
 
-## 9. Out of scope (we are explicitly NOT doing)
+## 9. Out of scope
 
+- ❌ Browser-only / web-only (technically impossible for our use case)
 - ❌ AI codegen ourselves — BYO Claude Code/Codex always
-- ❌ Lovable/Bolt-style "describe → app" flow — different category
-- ❌ Non-technical user support — we serve people who can use a terminal
-- ❌ Billing / rate-limit infrastructure inside DalkkakAI — Java platform handles
-- ❌ Native desktop app — cloud only
-- ❌ Mobile UI — long-term maybe, not now
-- ❌ Multi-tenant enterprise — Phase 4+, requires security redesign (Firecracker etc.)
-- ❌ Generic IDE features (intellisense, refactoring) — Cursor/VS Code do that; we orchestrate around them
-- ❌ Self-hosted on-prem — cloud-only product
+- ❌ Lovable/Bolt-style "describe → app" flow
+- ❌ Non-technical user support
+- ❌ Billing / rate-limit in DalkkakAI (Java platform)
+- ❌ Mobile — long-term maybe
+- ❌ Multi-tenant cloud workspace (this is a native app)
 
 ---
 
-## 10. Open questions (to resolve before/during Phase 0)
+## 10. Open questions
 
-1. **Java platform readiness** — Is the platform production-ready, in-progress, or to-be-built in parallel? Determines whether Phase 0-1 includes platform integration or starts with mock/self-contained billing.
-2. **Docker-in-Docker preview** — Old stack used socket-mount DinD; fine for Jason solo, security risk for multi-user. Resolve before Phase 4.
-3. **Skills marketplace monetization** — Revenue share model, free vs paid skills boundary.
-4. **Mobile/tablet** — When (if ever) does iPad get a first-class experience?
-5. **Cursor integration** — Replace with Monaco in-pane (Phase 2), or keep users on native Cursor side-by-side?
+1. Java platform readiness — production / in-dev / parallel?
+2. Tauri auto-update CDN — Cloudflare R2?
+3. macOS code signing — Apple Developer account
+4. Skills marketplace monetization
+5. Supabase OAuth + Tauri deep-link callback specifics
 
 ---
 
-## 11. References & inspiration
+## 11. References
 
-- **BridgeMind / BridgeSpace** (bridgemind.ai) — same philosophy product, local-only, per-project. Inspiration for multi-pane UX; we differentiate on cloud + multi-startup.
-- **VS Code's web terminal architecture** — xterm.js + node-pty stack; we follow.
-- **code-server** (Coder) — cloud IDE reference for how to host editor-like surfaces in a browser.
-- **Coder.com** — cloud development environments at scale; reference for multi-tenant patterns when we get there.
-- **Anthropic Claude Code skills system** — our skills packs build on top of this.
-- **Old codebase (Python, FastAPI)** — preserved in `old_repo/`; reference for worktree orchestration, PTY/WebSocket bridge patterns, billing scaffolding.
+- **BridgeMind / BridgeSpace** — same philosophy, Electron, per-project
+- **Warp Terminal** — native Rust terminal, GPU rendering
+- **VS Code's xterm.js + node-pty** — Rust equivalent is portable-pty
+- **Tauri-based products** — Spacedrive, Pot, Trezor Suite (migrated from Electron)
+- **Old codebase (Python)** — `old_repo/`, reference for worktree orchestration
 
 ---
 
 ## 12. Living document protocol
 
-- This file is the **canonical reference** for product + architecture decisions.
-- Update it when a decision changes (don't rely on chat memory).
-- Old decisions get a strikethrough or "(deprecated)" note rather than deletion (history matters).
-- New layers, new external services, new phases — all get added here first, code follows.
-- README.md (root) stays short and points here.
+- Canonical reference. Update on every decision change (not chat memory).
+- Old decisions get strikethrough or "(deprecated)" — history matters.
+- New layers / services / phases — added here first; code follows.
+- README.md stays short, points here.
