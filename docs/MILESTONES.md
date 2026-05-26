@@ -251,3 +251,47 @@ Numbers (memorize):
 - 153 insertions / 51 deletions in the actual fix (`00498b9`)
 - Avg ~30 min per fix iteration including its full post-mortem
 
+
+## 2026-05-26 — Phase 1.3 fully complete: persistence + reattach (Task #13)
+
+### 🔧 Engineering
+
+- **App.tsx**: layout `MosaicNode` tree serialized to `localStorage` on every `setLayout`. Initial state loaded from `localStorage["dalkkak.layout.v1"]` with basic shape validation; falls back to a fresh single pane on miss/corrupt.
+- **Auto-reattach is free via Step C's tmux integration**: `pty_spawn` already runs `tmux new-session -A -D -s dalkkak-<id>`. `-A` = attach if exists, create otherwise. On app restart, restored layout's ids re-spawn → tmux reattaches to surviving sessions. `claude`/`codex` processes continue uninterrupted because tmux server is a system-level background daemon (survives our app's lifecycle).
+- **Zombie cleanup**: `pty_kill` (called only from `destroyTerminal()` on explicit Close/Reset) now also runs `tmux kill-session -t dalkkak-<id>` so closed panes don't leak.
+- Acceptance verified by user: open 3-4 panes, run claude, close app, reopen → everything intact.
+- Commit: `5c3c56e`. 60 lines TS + 10 lines Rust total.
+
+### 💬 Raw
+
+이거 진짜 *신기*했다. 사용자 첫 반응이 "신기하다". 70 lines 글루로 *daily-tool feeling persistence* 완성.
+
+핵심은 *우리가 안 만든 거*. tmux server는 1987년부터 background daemon. 우리는 *localStorage에 tree만 저장 + spawn 시 -A flag*. **Engineering의 best part — 어려운 problem 직접 안 풀고, 이미 잘 푸는 도구(tmux)에 위임**. VS Code Server / Coder.com이 *매끈한* 비결도 동일 — primitives 좋은 거 선택 + thin glue.
+
+오늘 합쳐서 *24+ commits, Phase 1.0 → 1.3 fully complete*. 본인의 12 desktops → 1 DalkkakAI 향한 길의 80%. 남은 건 *Phase 1.4 sidebar* — multi-startup 정체성의 마지막 piece. 그것만 끝나면 product vision 완성.
+
+기술적 가장 큰 깨달음 — *복잡한 새 problem*인 줄 알고 시작한 게 *기존 primitives 조합*으로 풀림. Step C iteration 3번 (lifecycle decouple 발견까지) + Step D+E의 *tmux daemon 활용*. 두 번 다 "다시 발명하지 말고 위임"이 정답. 매번 본인이 *"공유되네"*, *"신기하다"* 같은 reactions로 path 짚어줌.
+
+### 📣 Marketing
+
+> **"DalkkakAI Phase 1.3 complete — close the app, reopen, your Claude conversations are right where you left them. 70 lines of glue on top of tmux + localStorage."**
+
+Talking points:
+
+1. **"Restart-safe by default."** Close DalkkakAI for a meeting → reopen → multi-pane layout restored, `claude --resume` not even needed because the session never died.
+2. **"Engineering minimalism."** 60 lines TypeScript + 10 lines Rust = full persistence. No process-state serializer; we leverage tmux (1987) as a battle-tested background daemon. *Glue, not invent.*
+3. **"Same pattern as VS Code Server / Coder.com / GitHub Codespaces."** Editor/terminal state owned by infrastructure (here: tmux server). UI is a viewport that re-attaches.
+4. **"Persistence by composition."** localStorage holds the tree; tmux holds the processes; we hold the bridge. Each piece does one thing well.
+
+Tagline candidates:
+- *"Close. Reopen. Right where you left it."*
+- *"Persistence by composition, not invention."*
+- *"tmux + localStorage + 70 lines."*
+
+Numbers:
+- 70 lines glue total (60 TS + 10 Rust)
+- 1 single localStorage key (`dalkkak.layout.v1`)
+- 1 tmux flag (`-A`) does the reattach magic
+- 2.82s warm `cargo check` for the Rust change
+- Total Phase 1 commits today: ~20
+
