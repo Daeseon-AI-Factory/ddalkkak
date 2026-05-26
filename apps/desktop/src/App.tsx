@@ -10,6 +10,41 @@ type PaneId = string;
 const generateId = (): PaneId =>
   `pane-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 
+// ─── Persistence (Step D + E) ──────────────────────────────────────────────
+// localStorage holds the MosaicNode tree. tmux server (background daemon)
+// holds the actual shell + Claude/codex processes across app restarts, so
+// reattach is automatic — restoring the tree triggers pty_spawn for each id,
+// which runs `tmux new-session -A -D -s dalkkak-<id>` and reattaches to the
+// existing tmux session if it survived.
+const LAYOUT_KEY = "dalkkak.layout.v1";
+
+function loadLayout(): MosaicNode<PaneId> | null {
+  try {
+    const raw = localStorage.getItem(LAYOUT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed === null) return null;
+    if (typeof parsed === "string") return parsed;
+    // basic shape check on objects
+    if (typeof parsed === "object" && "direction" in parsed && "first" in parsed && "second" in parsed) {
+      return parsed as MosaicNode<PaneId>;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function saveLayout(layout: MosaicNode<PaneId> | null) {
+  try {
+    if (layout === null) localStorage.removeItem(LAYOUT_KEY);
+    else localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout));
+  } catch {
+    /* full disk / quota: best-effort */
+  }
+}
+
+// ─── Tree ops ──────────────────────────────────────────────────────────────
 function collectIds(node: MosaicNode<PaneId> | null): PaneId[] {
   if (!node) return [];
   if (typeof node === "string") return [node];
@@ -45,11 +80,19 @@ function removeLeaf(
   return { ...node, first, second };
 }
 
+// ─── App ───────────────────────────────────────────────────────────────────
 export default function App() {
-  const [layout, setLayout] = useState<MosaicNode<PaneId> | null>(() => generateId());
+  const [layout, setLayout] = useState<MosaicNode<PaneId> | null>(
+    () => loadLayout() ?? generateId(),
+  );
   const [focusedId, setFocusedId] = useState<PaneId | null>(null);
 
-  // Initialize focus to the first pane on mount.
+  // Persist layout on every change.
+  useEffect(() => {
+    saveLayout(layout);
+  }, [layout]);
+
+  // Initialize focus to the first pane on mount or layout change-from-null.
   useEffect(() => {
     if (!focusedId && layout) {
       const ids = collectIds(layout);
@@ -69,7 +112,7 @@ export default function App() {
     setLayout(
       replaceLeaf(layout, target, { direction, first: target, second: newId }),
     );
-    setFocusedId(newId); // new pane gets focus (matches iTerm/VS Code)
+    setFocusedId(newId);
   };
 
   const closeFocused = () => {
@@ -97,9 +140,6 @@ export default function App() {
   };
 
   // Keyboard shortcuts — window-level capture so xterm doesn't swallow them.
-  // Cmd+D (or Ctrl+D on Linux/Win) — split right
-  // Cmd+Shift+D — stack below
-  // Cmd+W — close focused
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
