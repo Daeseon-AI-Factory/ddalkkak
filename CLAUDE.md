@@ -152,3 +152,20 @@ IDs: UUID v7. Timestamps: ISO 8601 UTC. Auth: Supabase JWT in Authorization head
 - Tauri allowlist (`tauri.conf.json`): restrict to commands actually used; don't enable broad fs/shell allowlist
 - Validate user input at boundaries
 - Rate limit: handled by Java platform
+
+---
+
+## RULE #8 — Two-layer logging (added 2026-05-26)
+
+**Layer 1 — Claude Code hooks** (`.claude/settings.json`): every Bash, Edit/Write, UserPromptSubmit, and Stop event is auto-logged to `logs/{actions,edits,prompts,sessions}.jsonl`. These are git-ignored raw logs; use them as raw material when writing `docs/ISSUES.md` post-mortems or `docs/MILESTONES.md` 3-tone entries.
+
+**Layer 2 — Product runtime tracing** (Rust `tracing` + `tracing-appender`): every meaningful PTY lifecycle event (spawn, kill, EOF, read error, emit failure) and Tauri command invocation is logged to `~/Library/Logs/DalkkakAI/runtime.log.YYYY-MM-DD` (daily rolling).
+
+When debugging a user-reported issue:
+1. Ask for the latest `runtime.log` (Layer 2) — gives the exact event sequence on their machine.
+2. Cross-reference with `logs/*.jsonl` (Layer 1) if it's a dev-time issue.
+3. Add an entry to `docs/ISSUES.md` with the relevant log snippets quoted in section 2 (root cause).
+
+When making a new architectural decision in this session: check `logs/prompts.jsonl` for the prompt that drove it (raw material for the post-mortem's prompt-quality blame section).
+
+Never log: passwords, tokens, API keys, PII. tracing macros accept structured fields — use them for IDs and counts, not for raw user input.

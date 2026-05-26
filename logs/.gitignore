@@ -1,0 +1,4 @@
+# Auto-generated raw logs from Claude Code hooks + product runtime
+# Kept locally for analysis but never committed.
+*.jsonl
+*.log

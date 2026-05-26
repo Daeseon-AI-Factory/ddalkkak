@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mkdir -p \"${CLAUDE_PROJECT_DIR:-.}/logs\" && jq -c --arg ts \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" '{ts: $ts, tool: \"Bash\", cmd: (.tool_input.command // \"\"), desc: (.tool_input.description // \"\"), out: ((.tool_response.output // .tool_response.stdout // \"\") | tostring | .[0:400])}' >> \"${CLAUDE_PROJECT_DIR:-.}/logs/actions.jsonl\" 2>/dev/null || true"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mkdir -p \"${CLAUDE_PROJECT_DIR:-.}/logs\" && jq -c --arg ts \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" '{ts: $ts, tool: (.tool_name // \"unknown\"), file: (.tool_input.file_path // .tool_input.notebook_path // \"\")}' >> \"${CLAUDE_PROJECT_DIR:-.}/logs/edits.jsonl\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mkdir -p \"${CLAUDE_PROJECT_DIR:-.}/logs\" && jq -c --arg ts \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" '{ts: $ts, prompt: (.prompt // \"\")}' >> \"${CLAUDE_PROJECT_DIR:-.}/logs/prompts.jsonl\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mkdir -p \"${CLAUDE_PROJECT_DIR:-.}/logs\" && echo \"{\\\"ts\\\":\\\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\\\",\\\"event\\\":\\\"session_end\\\"}\" >> \"${CLAUDE_PROJECT_DIR:-.}/logs/sessions.jsonl\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}

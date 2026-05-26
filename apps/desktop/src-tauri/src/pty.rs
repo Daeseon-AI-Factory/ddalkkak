@@ -12,6 +12,7 @@ use std::io::{Read, Write};
 use std::path::Path;
 use std::sync::Mutex;
 use tauri::{Emitter, Window};
+use tracing::{error, info, warn};
 
 #[derive(Serialize, Clone)]
 struct PtyOutputEvent {
@@ -119,8 +120,10 @@ pub fn spawn(window: Window, id: String, cols: u16, rows: u16) -> Result<PtySess
     }
 
     let child = pair.slave.spawn_command(cmd).map_err(|e| {
+        error!(target: "pty", id = %id, error = %e, tmux_path = %tmux_path, "spawn failed");
         format!("Failed to spawn /bin/bash wrapper ({}). Is bash available?", e)
     })?;
+    info!(target: "pty", id = %id, cols, rows, tmux_path = %tmux_path, session = %tmux_session, "spawned (bash → tmux)");
     drop(pair.slave);
 
     let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
@@ -128,10 +131,11 @@ pub fn spawn(window: Window, id: String, cols: u16, rows: u16) -> Result<PtySess
 
     std::thread::spawn(move || {
         let mut buf = [0u8; 4096];
+        let mut total_bytes: u64 = 0;
         loop {
             match reader.read(&mut buf) {
                 Ok(0) => {
-                    // PTY closed — emit a visible marker (yellow) so the user knows.
+                    warn!(target: "pty", id = %id, total_bytes, "PTY EOF — session closed");
                     let _ = window.emit(
                         "pty-output",
                         PtyOutputEvent {
@@ -142,13 +146,18 @@ pub fn spawn(window: Window, id: String, cols: u16, rows: u16) -> Result<PtySess
                     break;
                 }
                 Ok(n) => {
+                    total_bytes += n as u64;
                     let chunk = String::from_utf8_lossy(&buf[..n]).into_owned();
                     let event = PtyOutputEvent { id: id.clone(), data: chunk };
                     if window.emit("pty-output", event).is_err() {
+                        warn!(target: "pty", id = %id, total_bytes, "emit failed — webview gone, ending read loop");
                         break;
                     }
                 }
-                Err(_) => break,
+                Err(e) => {
+                    error!(target: "pty", id = %id, total_bytes, error = %e, "read error");
+                    break;
+                }
             }
         }
     });
