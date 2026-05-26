@@ -241,3 +241,49 @@ inside a slow pane. If close to the observed pane delay → confirmed.
 
 ### Status
 **Open, deferred.** Acknowledged as known limitation. Documented for user to either accept (it's their dotfiles) or apply user-side fix. Product-side pre-warm is a future option, not Phase 1.
+
+---
+
+## 2026-05-26 — New startup's layout lost after app restart (useEffect race)
+
+### 1. Symptom
+- Create a new startup via "+ New" sidebar.
+- Split panes inside it, run `claude` / `codex`.
+- Close DalkkakAI process. Reopen.
+- The new startup's panes are GONE. Layout reset to a single fresh leaf. **Default startup** unaffected.
+
+### 2. Root cause
+**useEffect ordering race** between the Load-layout effect and the Save-layout effect.
+
+When `activeStartupId` changes (createStartup → `setActiveStartupId`):
+1. Render fires with `activeStartupId = newId`, but `layout` is still the **previous** startup's value (or briefly `null` during transitions).
+2. In the same effect-flush:
+   - **Load effect** runs: computes new layout, queues `setLayout(...)` — doesn't reflect until next render.
+   - **Save effect** runs *in the same flush* with the stale `layout` value still in closure: `saveLayoutFor(newId, layoutOrNull)`.
+3. The Save effect's stale call either:
+   - Writes the **previous** startup's layout under the **new** startup's key (transient wrong value), or
+   - Writes `null` (which our old `saveLayoutFor` translated to `removeItem`).
+4. Normally the next render fixes it (Save fires again with correct layout). But Vite HMR, fast user actions, or process force-kill can leave the bad/missing state persisted.
+
+**Default startup escaped the bug** because its layout came from `migrateLegacyLayout` — a synchronous write *before any React effect ran*.
+
+### 3. Fix (this commit)
+Three small changes in `App.tsx`:
+
+1. **`createStartup`** synchronously seeds the new startup's layout (`saveLayoutFor(s.id, freshLeaf)`) BEFORE switching `activeStartupId`. Race-free because the new key is populated before any effect can run with stale state.
+2. **Load effect's fresh-leaf path** now writes the leaf to storage synchronously after `setLayout(...)`, so the key is never empty in storage.
+3. **Save effect** explicitly guards `layout === null`. Storage writes are *commit-on-meaning*, not commit-on-render.
+4. Bonus: `saveLayoutFor` now refuses `null` (type-signature change); removal is done via `removeLayoutFor` (called only from Reset).
+
+### 4. Was the instruction at fault?
+**Score**: *N/A* — surfaced by dogfood-style use (create + close quickly).
+
+### 5. Was it avoidable?
+**Score**: *foreseeable but not common knowledge*. React effect-ordering races during dependent-state transitions are a known footgun (`useEffect` with derived state). Senior React engineers catch this class on review; mid-level may not. We had the load+save in the same component, which is the precise antipattern.
+
+### 6. Lessons / Preventive measures
+- **Derived-state persistence pattern**: when one effect *reads* state that another *changes*, both can fire in the same flush with stale closures. Either:
+  - Co-locate load+save in a single effect/custom hook, or
+  - **Synchronously persist on mutation** at the call site (the chosen fix — `createStartup` writes immediately).
+- **Null-guard persistence effects**: treat `localStorage.setItem(key, null)` as "I don't actually mean this." Either skip or use an explicit `removeKey` action driven by user intent (Reset), not transient render state.
+- **Backlog idea**: consider migrating off "render-driven persistence" to a dedicated store (Zustand, Jotai, valtio) that owns the lifecycle. Added to `BACKLOG.md` under UX.

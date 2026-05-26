@@ -8,7 +8,6 @@ import {
   layoutKeyFor,
   loadActiveStartupId,
   loadStartups,
-  pickDefaultEmoji,
   saveActiveStartupId,
   saveStartups,
   generateStartupId,
@@ -43,11 +42,19 @@ function loadLayoutFor(startupId: string): MosaicNode<PaneId> | null {
   }
 }
 
-function saveLayoutFor(startupId: string, layout: MosaicNode<PaneId> | null) {
+function saveLayoutFor(startupId: string, layout: MosaicNode<PaneId>) {
+  // Note: never accepts null. Callers must not pass null here.
+  // Null transient states should be filtered upstream.
   try {
-    const key = layoutKeyFor(startupId);
-    if (layout === null) localStorage.removeItem(key);
-    else localStorage.setItem(key, JSON.stringify(layout));
+    localStorage.setItem(layoutKeyFor(startupId), JSON.stringify(layout));
+  } catch {
+    /* best-effort */
+  }
+}
+
+function removeLayoutFor(startupId: string) {
+  try {
+    localStorage.removeItem(layoutKeyFor(startupId));
   } catch {
     /* best-effort */
   }
@@ -88,7 +95,7 @@ function removeLeaf(
   return { ...node, first, second };
 }
 
-// ─── Migration: old single-layout key → first startup's layout ─────────────
+// ─── Migration ─────────────────────────────────────────────────────────────
 const LEGACY_LAYOUT_KEY = "dalkkak.layout.v1";
 
 function migrateLegacyLayout(targetStartupId: string) {
@@ -136,21 +143,31 @@ export default function App() {
     }
   }, [startups, activeStartupId]);
 
-  // When active startup changes (or on first load), load that startup's layout.
+  // Load layout for the active startup. If none stored, generate fresh AND
+  // PERSIST IMMEDIATELY so the save effect doesn't race with a transient null.
   useEffect(() => {
     if (!activeStartupId) {
       setLayout(null);
       setFocusedId(null);
       return;
     }
-    const restored = loadLayoutFor(activeStartupId) ?? generateId();
-    setLayout(restored);
-    setFocusedId(null); // will be auto-set by the next effect
+    const stored = loadLayoutFor(activeStartupId);
+    if (stored !== null) {
+      setLayout(stored);
+    } else {
+      const fresh = generateId();
+      saveLayoutFor(activeStartupId, fresh); // sync — prevents the null-race
+      setLayout(fresh);
+    }
+    setFocusedId(null);
   }, [activeStartupId]);
 
-  // Persist layout under the active startup's key.
+  // Persist layout on changes. CRITICAL: skip when layout is null.
+  // During activeStartupId transitions, layout is briefly null before the Load
+  // effect's setLayout takes effect. Without this guard, the save effect would
+  // remove the key (or write the previous startup's layout into the new key).
   useEffect(() => {
-    if (!activeStartupId) return;
+    if (!activeStartupId || layout === null) return;
     saveLayoutFor(activeStartupId, layout);
   }, [activeStartupId, layout]);
 
@@ -163,10 +180,16 @@ export default function App() {
   }, [focusedId, layout]);
 
   // ─── Startup ops ─────────────────────────────────────────────────────────
+  // Synchronously seeds the new startup's layout BEFORE switching to it.
+  // Prevents the same race as the Load effect's fresh-leaf path.
   const createStartup = (s: Startup) => {
     const next = [...startups, s];
     setStartups(next);
     saveStartups(next);
+
+    const fresh = generateId();
+    saveLayoutFor(s.id, fresh); // sync seed — no race possible
+
     setActiveStartupId(s.id);
     saveActiveStartupId(s.id);
   };
@@ -209,10 +232,11 @@ export default function App() {
   };
 
   const resetLayout = () => {
-    if (!layout) return;
+    if (!layout || !activeStartupId) return;
     for (const id of collectIds(layout)) {
       void destroyTerminal(id);
     }
+    removeLayoutFor(activeStartupId);
     const fresh = generateId();
     setLayout(fresh);
     setFocusedId(fresh);

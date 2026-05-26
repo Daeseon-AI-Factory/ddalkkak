@@ -104,3 +104,9 @@ When you encounter an item that fits this file:
 - **Multi-tenant** cloud workspace (Firecracker-style isolation required)
 - **Cursor/Claude.ai chat surface** integration inside panes
 - **In-pane code editor** (Monaco) for Cursor replacement
+
+### Migrate persistence off render-driven useEffect to a dedicated store (Zustand/Jotai)
+- **Why deferred**: Two `useEffect`-based persistence races have already burned us in Phase 1.3-1.4. A render-decoupled store (Zustand, Jotai, valtio) owns lifecycle explicitly — set commits immediately, no useEffect ordering footguns.
+- **Trigger to revisit**: A third race in this class, OR when the layout/startup state grows beyond 2 keys.
+- **Effort estimate**: ~2-3 hours (introduce store, port load/save/seed paths, drop the load/save effects).
+- **Source**: `ISSUES.md` 2026-05-26 (new-startup-lost race) + earlier layout-persistence work.
