@@ -1,7 +1,11 @@
-//! PTY backend — spawn a shell per pane id, stream stdout to the webview, accept input.
+//! PTY backend — spawn a **tmux**-attached shell per pane id.
 //!
-//! Uses `portable-pty` (same crate as Warp, WezTerm) for cross-platform PTY.
-//! Each `PtySession` is owned by a string id (one per pane).
+//! Each pane attaches to a tmux session named `dalkkak-<id>`. If the session
+//! exists, the PTY attaches; otherwise tmux creates it. This makes the
+//! pane's underlying shell + processes (e.g. `claude` CLI) survive React
+//! unmount/remount caused by react-mosaic layout changes.
+//!
+//! Uses `portable-pty` (Warp, WezTerm) for cross-platform PTY.
 
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use serde::Serialize;
@@ -9,7 +13,6 @@ use std::io::{Read, Write};
 use std::sync::Mutex;
 use tauri::{Emitter, Window};
 
-/// Event payload sent from Rust to the webview for every chunk of PTY stdout.
 #[derive(Serialize, Clone)]
 struct PtyOutputEvent {
     id: String,
@@ -51,10 +54,15 @@ pub fn spawn(window: Window, id: String, cols: u16, rows: u16) -> Result<PtySess
         .openpty(PtySize { cols, rows, pixel_width: 0, pixel_height: 0 })
         .map_err(|e| e.to_string())?;
 
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
-    let mut cmd = CommandBuilder::new(shell);
+    // Spawn tmux: attach to id-named session if exists, create otherwise.
+    //   -A : attach-if-exists
+    //   -D : detach other clients (so a fresh PTY attaches cleanly)
+    //   -s : session name
+    let tmux_session = format!("dalkkak-{}", id);
+    let mut cmd = CommandBuilder::new("tmux");
+    cmd.args(["new-session", "-A", "-D", "-s", &tmux_session]);
 
-    // RULE #5b — explicit env hygiene
+    // RULE #5b — explicit env hygiene (the client terminal Tauri provides)
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
     for var in [
@@ -69,13 +77,18 @@ pub fn spawn(window: Window, id: String, cols: u16, rows: u16) -> Result<PtySess
         cmd.cwd(home);
     }
 
-    let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
+    let child = pair.slave.spawn_command(cmd).map_err(|e| {
+        format!(
+            "Failed to spawn tmux ({}). Is tmux installed? Install: brew install tmux",
+            e
+        )
+    })?;
     drop(pair.slave);
 
     let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
     let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
 
-    // Background read loop — emit to "pty-output" with { id, data } payload.
+    // Background read loop — emit "pty-output" with { id, data }.
     std::thread::spawn(move || {
         let mut buf = [0u8; 4096];
         loop {
