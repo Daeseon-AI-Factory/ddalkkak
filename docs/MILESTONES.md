@@ -349,3 +349,59 @@ Numbers:
 - 24+ commits across Phase 1.0 → 1.4 in 24h
 - 0 silently-applied workarounds (every fix has an analysis)
 
+
+## 2026-05-26 — Production .app shipped: /Applications/DalkkakAI.app (Phase 1 fully done)
+
+### 🔧 Engineering
+
+- `pnpm tauri build --bundles app` (apps/desktop). Release profile, LLVM-optimized.
+- Compile time: **1m 13s** (incremental cache from prior dev compiles).
+- **Bundle: 8.7 MB total** (8.6 MB ARM64 binary + icons + Info.plist + frontend dist).
+  - vs Electron baseline: ~150 MB → **~17× smaller**.
+- Bundle ID `ai.ddalkkak.desktop`, version 0.1.0. Window 1400×900 (min 800×500).
+- Installed to `/Applications/DalkkakAI.app`. `xattr -cr` to strip macOS quarantine (unsigned dev build — no Apple Developer cert yet).
+- Cold launch: ~1s. Dock-pinnable, Spotlight-searchable.
+- `tauri.conf.json` updated this session: productName `appsdesktop` → `DalkkakAI`, window title same.
+- Frontend build downgrade: `react-mosaic-component@7.0.0-beta0` → `@6.1.1` stable (v7 has a breaking `MosaicNode` API change — `first/second` → `children[]` — that broke type-check at build time but didn't surface in dev). `createNode` prop removed (v7-only).
+
+Phase 1 (1.0 → 1.4) fully shipped:
+- 1.0 ✅ Tauri scaffold
+- 1.2 ✅ Single PTY pane (portable-pty + xterm.js + Tauri events)
+- 1.3 ✅ Multi-pane (react-mosaic) + tmux persistence + lifecycle decouple
+- 1.4 ✅ Multi-startup sidebar + per-startup layout + ⌘1-9/⌘⇧[/⌘⇧] shortcuts + rename/delete context menu
+
+### 💬 Raw
+
+**미친 하루.** 25시간 전 `git fetch` 연결 안 돼서 시작. v1 Python 11K LOC, frame 5번 reframe (비기술자 → indie hacker → cloud tmux → augmentation → Tauri native). 지금 — **/Applications/DalkkakAI.app 8.7MB**. *진짜 native app*. Dock에서 클릭 → 즉시 떠. 본인 12 desktops → 1 app이 *진짜 손에 들어옴*.
+
+8.7MB 본 순간 — **Tauri 선택이 맞았음을 처음 손에 체감**. Electron이면 150MB. 메모리도 비슷한 비율. 17× lighter. 매일 *동시에 5-10 Claude Code 띄울 때 눈으로 보이는 차이* (RAM 안 빼앗음).
+
+진척: 31 commits, 8 docs (~2000 lines), 6 ISSUES.md post-mortems, 700 lines our code, ~수십만 lines borrowed. *우리는 200 lines glue*. 정직.
+
+내일/오늘 저녁 → dock에 박고 **진짜 dogfood 시작**. 12 desktops 닫고 DalkkakAI만 1주일. 만족 → product. 불만족 → portfolio. 어느 쪽이든 *24h 마라톤이 자산*.
+
+### 📣 Marketing
+
+> **"DalkkakAI v0.1 shipped — 8.7 MB native macOS app. Multi-startup terminal multiplexer with tmux-backed Claude Code session persistence. Built solo in 24 hours."**
+
+Talking points:
+
+1. **"24-hour ship: idea → 8.7 MB native .app."** v1 Python codebase frozen, Tauri 2.x scaffolded, full Phase 1 (single PTY → multi-pane → tmux persistence → multi-startup sidebar + shortcuts + context menu) shipped to `/Applications/` next morning.
+2. **"17× lighter than Electron alternatives."** ~8.7 MB vs ~150 MB. ~30-80 MB RAM vs ~100-300 MB. Runs *alongside* multiple Claude Code instances instead of competing for memory.
+3. **"Solo + AI-pair workflow."** 31 commits, 6 six-section post-mortems, 8 docs files, ~700 lines of our code on top of Tauri / portable-pty / tmux / xterm.js / React / Vite / react-mosaic — composition over invention.
+4. **"BYO Claude Code, no token markup."** Users plug in their own Claude Code/Codex/subscription. Platform fee model (Phase 4).
+5. **"VS Code Server pattern: lifecycle decoupled from UI."** Pane state lives in tmux server (system daemon) + localStorage layout tree + module-level xterm registry. React Mosaic re-renders don't kill running processes.
+
+Tagline candidates:
+- *"8.7 MB. Multiple startups. Your Claude Code."*
+- *"Shipped in 24 hours. Built to outlive 12 desktops."*
+- *"The native workspace OS for solo founders running parallel startups."*
+
+Numbers to memorize:
+- 8.7 MB bundle (1.0 cold install)
+- 1m 13s release compile (incremental)
+- 31 commits in ~24h
+- 6 ISSUES.md post-mortems
+- ~700 lines of our code, rest borrowed
+- Phase 1 (1.0 → 1.4) fully shipped
+
