@@ -168,3 +168,39 @@ The chosen path (Step A+B → discover → Step C) traded one cycle of dogfood-f
   - (a) external lifecycle — resources persist beyond component mount/unmount (tmux is the cleanest implementation), or
   - (b) explicit "this pane is being destroyed forever" signal (user pressed Close, not just react reconciliation).
 - **Prompt-quality lesson**: when bundling "feature + persistence" in one task, *do not split persistence into a later step* unless you're prepared to ship a regression. Persistence-first or simultaneously.
+
+---
+
+## 2026-05-26 — Pane shows `[exited]` / panes appear to share session after Step C
+
+### 1. Symptom
+- After Step C (tmux integration, commit `d175811`), splitting panes resulted in `[exited]` appearing in a pane and/or what looked like multiple panes sharing one session.
+- User report: *"심각하게 안 되고 있다."*
+
+### 2. Root cause (multi-pronged hypothesis)
+1. **tmux binary not resolved on Tauri GUI PATH**: macOS GUI app processes inherit a minimal PATH (`/usr/bin:/bin`). Homebrew installs go to `/opt/homebrew/bin` (Apple Silicon) or `/usr/local/bin` (Intel). Step C's `pty.rs` used `CommandBuilder::new("tmux")` — bare name, PATH-resolved. When that resolution failed, the PTY child *exited immediately and silently*. The user saw `[exited]` (or an empty pane) and we got no diagnostic.
+2. **Silent failure pattern**: spawn-time PATH resolution doesn't surface a friendly error; spawn returns "success" because *something* was started (or because the spawn itself fails with a cryptic OS error message that's never displayed).
+3. **Potential id collision** (defensive): React strict-mode double-invokes setState callbacks. Our counter-based id generator (`nextIdRef.current++`) was technically safe but a footgun in concurrent rendering. If two leaves ever received the same id, they would attach to the same tmux session — looking like "shared content."
+
+### 3. Fix (commit *current*)
+- `pty.rs::find_tmux()` — try absolute path candidates first: `/opt/homebrew/bin/tmux`, `/usr/local/bin/tmux`, `/usr/bin/tmux`, `/opt/local/bin/tmux`. Fall back to `"tmux"` only as last resort.
+- `pty.rs::augmented_path()` — prepend `/opt/homebrew/bin:/usr/local/bin` to PATH so subprocesses (claude CLI, tmux itself in its post-fork shell, etc.) can find them.
+- `pty.rs` bash wrapper — spawn `/bin/bash -c "<tmux>; if failed: echo error; exec $SHELL"`. tmux failures are now **always visible** + a fallback shell prompt lets the user debug interactively.
+- `pty.rs` visible EOF — on `read() → Ok(0)`, emit `\x1b[33m[pane <id> closed]\x1b[0m` (yellow) to the renderer. Silent EOF + frozen pane was the worst possible UX.
+- `App.tsx::generateId()` — `pane-<base36-timestamp>-<base36-random>` per leaf. Mathematically collision-proof under rapid clicks + strict-mode invocations.
+- `<Mosaic createNode={generateId} />` — react-mosaic's own internal split (e.g., header buttons) now also uses our id generator.
+
+### 4. Was the instruction at fault?
+**Score**: *N/A* — surfaced via dogfooding, not a specific prompt.
+
+### 5. Was it avoidable?
+**Score**: *foreseeable and should have been done earlier.* Two specific lapses:
+- RULE #5b (added 2026-05-26 for the env-var fix) talked about *forwarding* PATH but not *augmenting* it. As soon as the subprocess changed from `$SHELL` (which uses PATH leniently) to `tmux` (a binary requiring strict path resolution), the gap surfaced. Rule needed extension before Step C.
+- Step C had no error-visibility plan. Silent failures from a spawn point that can fail in 5+ ways is unacceptable. Should have wrapped in bash from day one.
+
+### 6. Lessons / Preventive measures
+- **RULE #5b extended** (CLAUDE.md): when spawning *binaries* (vs. interpreters that resolve PATH internally) from Tauri, **augment** PATH with `/opt/homebrew/bin:/usr/local/bin`, not just forward.
+- **RULE #5c added** (CLAUDE.md): any subprocess that can fail must be wrapped with a visible error path. Template: `bash -c "$cmd || (echo 'failed (exit $?)'; exec $SHELL)"`.
+- **RULE #5d added** (CLAUDE.md): PTY EOF must emit a visible marker to the renderer (e.g., `[pane closed]` in yellow). Frozen-pane silence is forbidden.
+- **Id generators**: always use timestamp + random for cross-mount stability. Counter-based generators are footguns.
+- **Acceptance test for PTY work**: split 3+ times; verify each pane unique by id (title); kill a pane; verify visible exit marker; trigger a fail mode; verify visible error message.

@@ -1,15 +1,15 @@
-//! PTY backend — spawn a **tmux**-attached shell per pane id.
+//! PTY backend — spawn a tmux-attached shell per pane id, with robust error visibility.
 //!
-//! Each pane attaches to a tmux session named `dalkkak-<id>`. If the session
-//! exists, the PTY attaches; otherwise tmux creates it. This makes the
-//! pane's underlying shell + processes (e.g. `claude` CLI) survive React
-//! unmount/remount caused by react-mosaic layout changes.
-//!
-//! Uses `portable-pty` (Warp, WezTerm) for cross-platform PTY.
+//! Hardening (Steps C+):
+//! - find_tmux(): try known absolute paths (homebrew, etc.) before relying on PATH.
+//! - PATH augmentation: prepend /opt/homebrew/bin:/usr/local/bin to subprocess PATH.
+//! - bash wrapper: any tmux failure surfaces as visible error + fallback shell.
+//! - Visible EOF: PTY close emits a [pane closed] marker to the renderer.
 
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use serde::Serialize;
 use std::io::{Read, Write};
+use std::path::Path;
 use std::sync::Mutex;
 use tauri::{Emitter, Window};
 
@@ -45,6 +45,32 @@ impl PtySession {
     }
 }
 
+/// Resolve tmux binary path robustly against minimal Tauri GUI app PATH.
+fn find_tmux() -> String {
+    let candidates = [
+        "/opt/homebrew/bin/tmux", // Apple Silicon Homebrew
+        "/usr/local/bin/tmux",    // Intel Homebrew
+        "/usr/bin/tmux",          // Linux/macOS native
+        "/opt/local/bin/tmux",    // MacPorts
+    ];
+    for path in &candidates {
+        if Path::new(path).exists() {
+            return path.to_string();
+        }
+    }
+    "tmux".to_string()
+}
+
+/// Build augmented PATH so subprocesses can find Homebrew-installed binaries.
+fn augmented_path() -> String {
+    let extra = "/opt/homebrew/bin:/usr/local/bin";
+    match std::env::var("PATH") {
+        Ok(p) if p.contains("/opt/homebrew/bin") || p.contains("/usr/local/bin") => p,
+        Ok(p) => format!("{}:{}", extra, p),
+        Err(_) => format!("{}:/usr/bin:/bin", extra),
+    }
+}
+
 pub fn spawn(window: Window, id: String, cols: u16, rows: u16) -> Result<PtySession, String> {
     let cols = if cols == 0 { 80 } else { cols };
     let rows = if rows == 0 { 24 } else { rows };
@@ -54,19 +80,34 @@ pub fn spawn(window: Window, id: String, cols: u16, rows: u16) -> Result<PtySess
         .openpty(PtySize { cols, rows, pixel_width: 0, pixel_height: 0 })
         .map_err(|e| e.to_string())?;
 
-    // Spawn tmux: attach to id-named session if exists, create otherwise.
-    //   -A : attach-if-exists
-    //   -D : detach other clients (so a fresh PTY attaches cleanly)
-    //   -s : session name
+    let tmux_path = find_tmux();
     let tmux_session = format!("dalkkak-{}", id);
-    let mut cmd = CommandBuilder::new("tmux");
-    cmd.args(["new-session", "-A", "-D", "-s", &tmux_session]);
 
-    // RULE #5b — explicit env hygiene (the client terminal Tauri provides)
+    // bash wrapper — tmux failures become visible, then fallback shell so user can debug.
+    let cmd_str = format!(
+        "{tmux} new-session -A -D -s {sess} 2>&1; \
+         status=$?; \
+         if [ $status -ne 0 ]; then \
+           echo ''; \
+           echo '⚠️  tmux exited with code '$status'. tmux_path='{tmux}; \
+           echo 'Falling back to interactive shell. Try: tmux ls'; \
+           echo ''; \
+         fi; \
+         exec ${{SHELL:-/bin/bash}}",
+        tmux = tmux_path,
+        sess = tmux_session,
+    );
+
+    let mut cmd = CommandBuilder::new("/bin/bash");
+    cmd.args(["-c", &cmd_str]);
+
+    // RULE #5b — explicit env hygiene
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
+    cmd.env("PATH", augmented_path());
+
     for var in [
-        "PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "LC_CTYPE",
+        "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "LC_CTYPE",
         "TZ", "SHELL", "PWD", "TMPDIR",
     ] {
         if let Ok(val) = std::env::var(var) {
@@ -78,22 +119,28 @@ pub fn spawn(window: Window, id: String, cols: u16, rows: u16) -> Result<PtySess
     }
 
     let child = pair.slave.spawn_command(cmd).map_err(|e| {
-        format!(
-            "Failed to spawn tmux ({}). Is tmux installed? Install: brew install tmux",
-            e
-        )
+        format!("Failed to spawn /bin/bash wrapper ({}). Is bash available?", e)
     })?;
     drop(pair.slave);
 
     let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
     let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
 
-    // Background read loop — emit "pty-output" with { id, data }.
     std::thread::spawn(move || {
         let mut buf = [0u8; 4096];
         loop {
             match reader.read(&mut buf) {
-                Ok(0) => break,
+                Ok(0) => {
+                    // PTY closed — emit a visible marker (yellow) so the user knows.
+                    let _ = window.emit(
+                        "pty-output",
+                        PtyOutputEvent {
+                            id: id.clone(),
+                            data: format!("\r\n\x1b[33m[pane {} closed]\x1b[0m\r\n", id),
+                        },
+                    );
+                    break;
+                }
                 Ok(n) => {
                     let chunk = String::from_utf8_lossy(&buf[..n]).into_owned();
                     let event = PtyOutputEvent { id: id.clone(), data: chunk };

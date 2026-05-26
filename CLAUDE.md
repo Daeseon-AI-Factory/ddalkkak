@@ -58,20 +58,44 @@ Reference only. Do not modify, extend, or import from `old_repo/`.
 - **Long-running tasks:** Spawn into `tokio::spawn`, store handle in app state
 - **App state:** `tauri::State<T>` with `Arc<Mutex<T>>` or `Arc<RwLock<T>>`
 - **Errors:** Return `Result<T, String>` from commands (Tauri serializes both arms)
-- **Cargo features:** Keep `src-tauri/Cargo.toml` lean; don't pull `tokio/full` if a subset works
 
 ---
 
-## RULE #5b — Subprocess env hygiene (added 2026-05-26)
+## RULE #5b — Subprocess env hygiene (added 2026-05-26, extended 2026-05-26)
 
-When spawning any subprocess in a Tauri (or any GUI desktop) app, **never** assume inherited environment is sufficient. Always:
+When spawning **any** subprocess in a Tauri (or any GUI desktop) app, never assume inherited environment is sufficient. Always:
 
-- Explicitly set `TERM=xterm-256color` and `COLORTERM=truecolor`
-- Forward common interactive-shell vars: `PATH`, `HOME`, `USER`, `LOGNAME`, `LANG`, `LC_ALL`, `LC_CTYPE`, `TZ`, `SHELL`, `PWD`, `TMPDIR`
-- Set sensible `cwd` (default `$HOME` for terminal panes; per-worktree for project panes later)
-- Guard pathological PTY sizes (`cols=0`/`rows=0`) with a fallback (80×24)
+- Explicitly set `TERM=xterm-256color` and `COLORTERM=truecolor`.
+- Forward common interactive-shell vars: `HOME`, `USER`, `LOGNAME`, `LANG`, `LC_ALL`, `LC_CTYPE`, `TZ`, `SHELL`, `PWD`, `TMPDIR`.
+- **For PATH specifically: *augment*, not just forward.** Prepend `/opt/homebrew/bin:/usr/local/bin` so Homebrew-installed binaries (tmux, claude, etc.) resolve. The Tauri GUI app's inherited PATH may be minimal.
+- Set sensible `cwd` (default `$HOME` for terminal panes; per-worktree for project panes later).
+- Guard pathological PTY sizes (`cols=0`/`rows=0`) with a fallback (80×24).
 
-A "minimal shell" inside a GUI bundle is a different beast from a shell in iTerm. Capability-querying TUIs (Claude Code, vim, fzf, htop) hang ~10-15s when TERM is unset. See `docs/ISSUES.md` entry 2026-05-26 for the post-mortem.
+A "minimal shell" inside a GUI bundle is a different beast from a shell in iTerm. See `docs/ISSUES.md` 2026-05-26 entries for two prior post-mortems on this class.
+
+---
+
+## RULE #5c — Spawn pattern: wrap fallible binaries (added 2026-05-26)
+
+Any subprocess that **can fail** must be wrapped with a **visible error path**. Bare `CommandBuilder::new("tmux")` style spawns silently die if PATH resolution fails or the binary errors out — the user just sees a blank pane.
+
+Template:
+```bash
+/bin/bash -c "$cmd 2>&1; status=$?; if [ $status -ne 0 ]; then echo 'failed (exit '$status')'; fi; exec ${SHELL:-/bin/bash}"
+```
+
+Effects:
+- bash takes over PATH resolution and error reporting
+- non-zero exits surface as readable text in the pane
+- a fallback shell prompt lets the user debug interactively (`tmux ls`, `which tmux`, etc.)
+
+---
+
+## RULE #5d — PTY EOF must be visible (added 2026-05-26)
+
+When a PTY's `read()` returns `Ok(0)` (EOF), the renderer must receive a **visible marker** before the stream closes — e.g., `\x1b[33m[pane <id> closed]\x1b[0m` in yellow.
+
+Frozen-pane-with-no-output is the worst possible UX: the user can't tell whether the pane died, is hung, or is just slow. Always emit *something* on close.
 
 ---
 
@@ -79,21 +103,15 @@ A "minimal shell" inside a GUI bundle is a different beast from a shell in iTerm
 
 **Every** bug, friction, surprise, or fix MUST get a `docs/ISSUES.md` entry with all 6 required sections (symptom / root cause / fix / instruction-at-fault analysis / avoidability / lessons). **Patching and moving on is forbidden — analyze.**
 
-These entries are studied later for:
-- Code reviews (catch regression of the same class)
-- Amazon SDE II interviews (failure analysis is half of system design)
-- Dogfooding pattern recognition (which classes of bugs recur?)
-- AI-pair-coding prompt improvement (when was the instruction underspecified?)
+These entries are studied later for code reviews, Amazon SDE II interviews (failure analysis is half of system design), dogfooding pattern recognition, AI-pair-coding prompt improvement.
 
-If a fix yields a permanent rule (e.g., RULE #5b above), also append it to this file under the right rule number.
-
-Cost: 10-15 minutes per entry. Payoff: every recurrence of the same class is caught in seconds.
+If a fix yields a permanent rule, also append it to this file under the right rule number.
 
 ---
 
 ## RULE #7 — Append to `MILESTONES.md` after every task / major decision
 
-Three tones every time (🔧 Engineering / 💬 Raw / 📣 Marketing) — see `docs/MILESTONES.md` protocol at top. Same step is reusable for different audiences later (interviews, friends, marketing).
+Three tones every time (🔧 Engineering / 💬 Raw / 📣 Marketing). Same step is reusable for different audiences later.
 
 ---
 

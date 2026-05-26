@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Mosaic, MosaicWindow, type MosaicNode } from "react-mosaic-component";
 import "react-mosaic-component/react-mosaic-component.css";
 import { TerminalPane } from "./TerminalPane";
@@ -6,23 +6,27 @@ import "./App.css";
 
 type PaneId = string;
 
+// Robust ID generation — timestamp + random suffix. Avoids collisions across
+// React strict-mode double-invokes and rapid clicks. Counter approaches are
+// footguns in concurrent rendering.
+const generateId = (): PaneId =>
+  `pane-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+
 export default function App() {
-  const [layout, setLayout] = useState<MosaicNode<PaneId> | null>("pane-1");
-  const nextIdRef = useRef(2);
+  const [layout, setLayout] = useState<MosaicNode<PaneId> | null>(() => generateId());
 
   const addPaneRow = () => {
-    const newId = `pane-${nextIdRef.current++}`;
+    const newId = generateId();
     setLayout((prev) => (prev ? { direction: "row", first: prev, second: newId } : newId));
   };
 
   const addPaneColumn = () => {
-    const newId = `pane-${nextIdRef.current++}`;
+    const newId = generateId();
     setLayout((prev) => (prev ? { direction: "column", first: prev, second: newId } : newId));
   };
 
   const resetLayout = () => {
-    nextIdRef.current = 2;
-    setLayout("pane-1");
+    setLayout(generateId());
   };
 
   return (
@@ -42,6 +46,7 @@ export default function App() {
           )}
           value={layout}
           onChange={setLayout}
+          createNode={generateId}
         />
       </div>
     </div>
