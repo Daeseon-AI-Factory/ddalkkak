@@ -31,6 +31,101 @@ Total to MVP-with-paying-users: **~8-12 months** at solo + AI-pair pace.
 
 ---
 
+## Feature catalog — 한눈에 보는 *남은 모든 기능*
+
+> Phase별 자세한 sub-tasks는 아래 섹션. 여기는 *기능 단위 압축 list*.
+
+### 🤖 AI / Claude Code augmentation (Phase 2)
+
+| 기능 | 효과 |
+|---|---|
+| Claude Code 출력 parser | "Tool: edit X", "Allow Y/N?" 패턴 인식 → friendly UI |
+| Friendly UI overlay | "Allow / Deny?" → 즉시 클릭 버튼 (xterm 입력 우회) |
+| Side panel — file diff | Claude이 file 수정 시 sidebar에 진짜 diff viewer |
+| AI activity dot (per pane) | working / idle / blocked / completed — pane 색깔로 |
+| Pane lateral panel | focused pane이 Claude 운영 중일 때 sidebar에 parsed detail |
+| Skills auto-injection | Jason's Claude Code 노하우 (`packages/skills/`) → session 시작 시 자동 prefix |
+| Skills toggle | Per-startup 별 active skill 선택 |
+| Monaco editor pane (옵션) | Pane type 시스템 — Terminal / Editor / Browser / Diagram |
+| File diff viewer pane | Claude edit 시 자동 표시 |
+
+### 🏢 Multi-startup operator layer (Phase 3)
+
+| 기능 | 효과 |
+|---|---|
+| Per-startup deployed URL | 각 startup에 production URL 메타데이터 |
+| Background uptime ping | Rust tokio 5분마다 ping → status 기록 |
+| Status dot in sidebar | ●green / ◐yellow / ✕red — 한눈에 |
+| Uptime history detail | Click → 시간별 status graph |
+| Architecture viz 자동 생성 | Code → Mermaid / React Flow diagram (per startup) |
+| Diagram pane type | Mosaic layout에 terminal 아닌 diagram pane |
+| Advisor daily summary | 매일 morning — 모든 startup의 전날 변화 요약 (BYO Claude key) |
+| "Today's brief" 알림 | Sidebar morning entry point |
+| Stripe / PostHog 연동 | Per-startup external service connector |
+| Cross-startup dashboard | MRR / DAU / 등 한 화면 |
+
+### 📦 Distribution / Cloud (Phase 4)
+
+| 기능 | 효과 |
+|---|---|
+| macOS 서명 (Apple Dev $99/yr) | Gatekeeper 경고 없이 install |
+| Notarization + stapling | Apple 서버 검증 (production-grade) |
+| Tauri auto-updater | Cloudflare R2 CDN으로 자동 update push |
+| Supabase auth | 회원가입 / 로그인 / OAuth (tauri-plugin-oauth) |
+| Cloud backend (`apps/cloud`) | Hono on Fly.io — auth/sync/advisor proxy |
+| Java platform 연동 | Billing / rate-limit REST + OpenAPI client |
+| Multi-device sync | Settings / skills / layout backup |
+| Landing page (`dalkkak.ai`) | 공개 진입점 |
+| Sign-up flow | First-time user 경로 |
+| First-launch walkthrough | 지금 onboarding보다 깊은 tour |
+| Pricing page | 4 tier (Free / Starter / Growth / Scale) |
+| Documentation site | docs/ 외부 공개 |
+
+### 🛍️ Skills marketplace (Phase 4 후반 + Phase 5+)
+
+| 기능 | 효과 |
+|---|---|
+| Skill pack 정의 | md + yaml manifest + 카테고리 |
+| Jason's first 5-10 packs | 본인 Claude Code 노하우 published |
+| "Discover skills" tab | Sidebar에 browse / install / uninstall |
+| Skill version + update | 새 버전 publish 시 사용자에게 update notify |
+| (Phase 5+) 3rd-party sellers | Community 등록 + revenue share (e.g. 70/30) |
+
+### 🎨 작은 polish (BACKLOG, 1-2시간 each)
+
+| 기능 | Trigger |
+|---|---|
+| Pre-warm PTY (2nd pane delay) | Dogfood week가 답답함 confirm 시 |
+| Per-startup color accent | 5+ startup 시 sidebar 구분 어려우면 |
+| Pane navigation ⌘⌥arrows | Click focus 답답 시 |
+| Pane number badges | ⌘1-9 단축키 사용 늘면 |
+| Fast-shell toggle | 일부 user가 bare bash 원할 때 |
+| `pnpm typecheck` script | CI / lint 셋업 시 |
+
+### 🚀 Long-term / vapor (Phase 5+)
+
+- Mobile / tablet companion view (read-only?)
+- Multi-tenant cloud workspace (Firecracker isolation)
+- Windows + Linux builds (Tauri cross-platform)
+- Team workspaces (multi-user shared startups)
+- AI-powered workspace organization (auto-cluster panes, predict next task)
+- 3rd-party skill marketplace ecosystem
+
+### 한 줄 요약
+
+```
+필수 (vision 완성):  augmentation 9 + operator 10 + distribution 12 = 31 기능
+선택 (polish):       backlog 6 + vapor 6
+Total to ship:       ~9-12 months (solo + AI-pair)
+```
+
+**진짜 wedge 3개** (나머진 infrastructure):
+1. Claude Code augmentation (Phase 2.1-2.2)
+2. Cross-startup operator layer (Phase 3 전체)
+3. Skills marketplace (Phase 4.4 + Phase 5+)
+
+---
+
 ## Phase 1.5 — Dogfood week (즉시, 1주)
 
 **Goal**: Jason이 12 desktops 닫고 DalkkakAI만 1주일 사용.
