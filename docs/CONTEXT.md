@@ -1,6 +1,6 @@
 # DalkkakAI — Current Situation (for second-opinion review)
 
-> 다른 LLM, 멘토, founder에게 *현재 상황 + 결정해야 할 open question*을 한 번에 paste하기 위한 self-contained 문서. 2026-05-26 기준.
+> 다른 LLM, 멘토, founder에게 *현재 상황 + 결정해야 할 open question*을 한 번에 paste하기 위한 self-contained 문서. 2026-05-27 기준.
 
 ---
 
@@ -26,14 +26,14 @@ One-line category: *"Lightweight native multi-pane terminal multiplexer + Claude
 - portable-pty (Rust crate; Warp/WezTerm use it too)
 - tmux 3.6 (system daemon; 39-year-validated session backend)
 - xterm.js 6 (VS Code's terminal renderer)
-- React 18 + Vite + TypeScript
-- react-mosaic-component 7 (layout tree)
+- React 19 + Vite + TypeScript
+- react-mosaic-component 6.1.1 (layout tree — pinned after v7 beta API break)
 - localStorage (persistence)
 
 **Built (us)** — ~600 lines code + ~2,000 lines docs:
-- `apps/desktop/src-tauri/src/pty.rs` (~120 lines): PTY backend, env hygiene, bash wrapper
-- `apps/desktop/src-tauri/src/lib.rs` (~80 lines): 4 Tauri commands keyed by pane id
-- `apps/desktop/src/terminalRegistry.ts` (~80 lines): xterm+PTY lifecycle OUT of React (VS Code Server pattern)
+- `apps/desktop/src-tauri/src/pty.rs` (~170 lines): PTY backend, env hygiene, bash wrapper, visible-EOF marker
+- `apps/desktop/src-tauri/src/lib.rs` (~133 lines): 5 Tauri commands keyed by pane id + tracing init
+- `apps/desktop/src/terminalRegistry.ts` (~120 lines): xterm+PTY lifecycle OUT of React (VS Code Server pattern)
 - `apps/desktop/src/App.tsx` (~310 lines): Mosaic layout + Sidebar + persistence + shortcuts
 - `apps/desktop/src/Sidebar.tsx`, `startups.ts`, `App.css`
 - Docs: BLUEPRINT, MIGRATION_PLAN, MILESTONES, ISSUES, BACKLOG, SHORTCUTS, STACK, CLAUDE rules
@@ -42,7 +42,7 @@ Honest analogy: *Michelin chef buying tomatoes at the market — the recipe is t
 
 ---
 
-## 3. Progress (24-hour sprint, 29 commits)
+## 3. Progress (multi-day sprint, ~40 commits as of 2026-05-27)
 
 ```
 Phase 1.0 ✅ Tauri scaffold
@@ -137,7 +137,7 @@ We have honest engineering muscle and 24h proof. What's the actual highest-lever
 
 ## 8. Repo
 
-- GitHub: `github.com/Daeseon-AI-Factory/ddalkkak` (29 commits pushed as of 2026-05-26)
+- GitHub: `github.com/Daeseon-AI-Factory/ddalkkak` (~40 commits pushed as of 2026-05-27, v0.1.0 tag pushed)
 - Local: `/Users/daeseonyoo/Documents/GitHub/ai-product/ddalkkak`
 - Recommended reading order for a deep reviewer:
   1. `docs/BLUEPRINT.md` — canonical product reference
