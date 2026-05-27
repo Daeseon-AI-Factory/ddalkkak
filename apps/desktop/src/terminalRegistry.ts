@@ -11,7 +11,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { StreamParser, type AugmentorEvent } from "@ddalkkak/augmentor";
+import { StreamParser } from "@ddalkkak/augmentor";
 
 interface PtyOutputEvent {
   id: string;
