@@ -11,6 +11,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { StreamParser, type AugmentorEvent } from "@ddalkkak/augmentor";
 
 interface PtyOutputEvent {
   id: string;
@@ -22,6 +23,7 @@ interface RegistryEntry {
   fit: FitAddon;
   unlisten: UnlistenFn | null;
   spawned: boolean;
+  parser: StreamParser;
 }
 
 const registry = new Map<string, RegistryEntry>();
@@ -45,7 +47,8 @@ export function getOrCreateTerminal(id: string): RegistryEntry {
   const fit = new FitAddon();
   term.loadAddon(fit);
 
-  const entry: RegistryEntry = { term, fit, unlisten: null, spawned: false };
+  const parser = new StreamParser();
+  const entry: RegistryEntry = { term, fit, unlisten: null, spawned: false, parser };
   registry.set(id, entry);
 
   // Subscribe to PTY output for this id, once. The subscription survives
@@ -53,6 +56,17 @@ export function getOrCreateTerminal(id: string): RegistryEntry {
   void (async () => {
     const off = await listen<PtyOutputEvent>("pty-output", (event) => {
       if (event.payload.id === id) {
+        // Phase 2.1 — augmentor parses BEFORE writing to xterm.
+        // Parser is sync; event log is fire-and-forget.
+        try {
+          const evts = parser.feed(event.payload.data);
+          for (const evt of evts) {
+            void invoke("log_augmentor_event", { id, event: evt as unknown as Record<string, unknown> }).catch(() => {});
+            if (import.meta.env?.DEV) console.debug(`[augmentor ${id}]`, evt);
+          }
+        } catch (e) {
+          console.warn("augmentor parser threw:", e);
+        }
         term.write(event.payload.data);
       }
     });

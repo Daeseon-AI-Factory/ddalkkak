@@ -73,6 +73,14 @@ fn pty_resize(id: String, cols: u16, rows: u16, state: State<'_, PtyState>) -> R
 /// Explicit destroy: kill PTY client, AND kill the underlying tmux session so
 /// it doesn't leak as a zombie after Close. Called only from explicit Close
 /// or Reset actions on the renderer side (via destroyTerminal).
+/// Receive a parsed augmentor event from the renderer and write it to the
+/// `augmentor` tracing target. Logged at info; fire-and-forget from caller.
+#[tauri::command]
+fn log_augmentor_event(id: String, event: serde_json::Value) -> Result<(), String> {
+    info!(target: "augmentor", id = %id, event = %event, "event");
+    Ok(())
+}
+
 #[tauri::command]
 fn pty_kill(id: String, state: State<'_, PtyState>) -> Result<(), String> {
     info!(target: "cmd", id = %id, "pty_kill");
@@ -117,7 +125,8 @@ pub fn run() {
             pty_spawn,
             pty_write,
             pty_resize,
-            pty_kill
+            pty_kill,
+            log_augmentor_event
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

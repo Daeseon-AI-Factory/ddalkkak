@@ -17,6 +17,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@ddalkkak/augmentor':
+        specifier: workspace:*
+        version: link:../../packages/augmentor
       '@tauri-apps/api':
         specifier: ^2.11.0
         version: 2.11.0
