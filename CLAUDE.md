@@ -176,13 +176,14 @@ Never log: passwords, tokens, API keys, PII. tracing macros accept structured fi
 When you fix or decide something non-trivial in this repo, write BOTH of these in the same turn as the commit:
 
 1. `docs/troubleshooting.md` — terse problem-indexed reference (Symptom / Cause / Fix / Commit / Pattern). Append a new entry below the `---` divider.
-2. `content/logs/<project-slug>/<YYYY-MM-DD>-<short-slug>.mdx` — dated narrative with frontmatter:
+2. `content/logs/dalkkak-ai/<YYYY-MM-DD>-<short-slug>.mdx` — dated narrative with frontmatter:
 
 ```yaml
 ---
 title: "Concrete one-line title"
-date: "YYYY-MM-DD"
-project: "ddalkkak"
+date: "YYYY-MM-DD"          # ALWAYS quoted! unquoted ISO date is parsed as a
+                            # Date object by js-yaml and breaks the blog build.
+project: "dalkkak-ai"       # slug locked-in — matches blog's content/projects/en/dalkkak-ai.mdx
 kind: "troubleshoot | tech-retro | ux-retro | business | monetization | update"
 visibility: "public | unlisted | private"
 language: "en"
@@ -223,40 +224,16 @@ The Stop hook blocks the turn until the most recent commit is either logged OR e
 - Option B — append the same `<!-- skipped: <hash> <subject> -->` line yourself, then commit. Same effect.
 
 Routine = typo fix, lint fix, formatting commit, dep bump without behavior change, file rename. Anything else: write the entry.
+
 ---
 
 ## RULE #9 — Cross-repo blog log slug (added 2026-05-27)
 
-This repo is a **satellite of the `daseon-blog` cross-repo log aggregator**. The blog at <https://daeseon.ai> fetches log mdx files from this repo and renders them on the project timeline page.
+This repo is a **satellite of the `daseon-blog` cross-repo log aggregator** at <https://daeseon.ai>. The blog fetches `content/logs/dalkkak-ai/*.mdx` from this repo and renders them on the project timeline.
 
 **Slug for this repo (locked-in, do NOT re-detect): `dalkkak-ai`**
+Auto-detected by matching this repo's origin URL (`Daeseon-AI-Factory/ddalkkak`) against the `repo:` field of `content/projects/en/dalkkak-ai.mdx` in `daseon-blog`.
 
-All non-trivial changes / debugging / decisions must be written as a log entry in:
-
-```
-content/logs/dalkkak-ai/<YYYY-MM-DD>-<short-slug>.mdx
-```
-
-Frontmatter requirements:
-
-```yaml
----
-title: "한 줄 제목"
-date: "2026-05-27"            # ALWAYS quoted! unquoted ISO date is parsed as a
-                              # Date object by js-yaml and breaks the blog build.
-project: "dalkkak-ai"         # exact slug above, lowercase, hyphenated
-kind: troubleshoot | tech-retro | ux-retro | business | monetization | update
-visibility: "public"
-language: "en"
-summary: "One sentence — what happened + outcome."
-tags: ["tag1", "tag2"]
----
-```
-
-Body conventions (match existing `content/logs/dalkkak-ai/*.mdx`):
-- First-person English. Terse, direct.
-- For `troubleshoot` kind: use `## Symptom` / `## Cause` / `## Fix` / `## Pattern` sections.
-- Quote actual errors, log lines, code, commit hashes verbatim — no paraphrasing.
-- Mark anything not directly verified with `[unverified: <claim>]`. Don't fabricate.
+This RULE only locks the slug. **Dual-write protocol, anti-hallucination rules, visibility defaults, and Stop-hook skip behavior live in the "Project log" section above (right after RULE #8). Follow that section verbatim — this one just pins the slug.**
 
 After pushing, the blog auto-refreshes the timeline at `https://daeseon.ai/projects/dalkkak-ai/` within ~30 seconds.
