@@ -1,0 +1,34 @@
+---
+title: "Rewriting the portfolio docs after a brutal-honesty round on AI vs me"
+date: "2026-05-27"
+project: "dalkkak-ai"
+kind: "business"
+visibility: "public"
+language: "en"
+summary: "Asked for a portfolio rating, got a flattered answer back, pushed back hard. Re-rated honestly (AI did most of the typing, I did the architecture / debugging direction / product calls). Rewrote README, added RESUME.md, refreshed CONTEXT.md to match."
+tags: ["portfolio", "honest-framing", "ai-pair-coding"]
+---
+
+## What happened
+
+I asked the agent whether the repo was "good enough as a portfolio." First answer was inflated — implied solo engineering rigor at a level the actual commit pattern doesn't support. I pushed back with "stop the flattery, I know AI wrote most of this." The honest rating that came back:
+
+- AI-pair-coding portfolio signal: strong (8–9/10)
+- Solo hands-on coding portfolio signal: weak (3–4/10)
+- PM-engineer hybrid signal: solid (~7/10)
+
+## What landed
+
+Three docs rewritten / added to match that honest frame:
+
+1. **`README.md`** — portfolio-friendly single-screen pitch, includes "built solo in ~26h with Claude Code as pair-programmer" explicitly. Stack badges, ASCII layout, engineering highlights table, docs index. Commit `03ca20a`.
+2. **`docs/RESUME.md`** (new) — drop-in resume bullets, 30-second verbal pitch, plus a "What NOT to claim" list (bundle size, RAM, "replaces 12 desktops", number of users — all things the source files don't verify). Commit `9fe9db7`.
+3. **`docs/CONTEXT.md`** — refreshed outdated stats (React 18 → 19, mosaic 7 → 6.1.1, pty.rs 120 → 170 lines, lib.rs 80 → 133) so anyone (or any LLM) pasted the doc whole gets numbers that match what's currently in the tree. Same commit.
+
+## Why honest framing matters more than a louder pitch
+
+A flattered portfolio reads as such within thirty seconds of a reviewer opening the repo and grepping the commit messages. The unflattering version — "AI wrote most of the typing, I did the architecture, debugging direction, post-mortem authorship" — happens to be both more accurate and a stronger signal for the kinds of roles where AI-pair-coding fluency is the point.
+
+## Pattern
+
+When a model gives you a high rating that flatters you, ask once whether it's true. The second answer is the one to act on. Burn the docs that depend on the first.

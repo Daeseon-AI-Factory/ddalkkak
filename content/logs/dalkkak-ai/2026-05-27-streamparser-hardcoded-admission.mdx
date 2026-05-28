@@ -1,0 +1,43 @@
+---
+title: "StreamParser shipped with hardcoded regexes — they don't match real Claude Code output"
+date: "2026-05-27"
+project: "dalkkak-ai"
+kind: "tech-retro"
+visibility: "public"
+language: "en"
+summary: "Phase 2.1 Stage 1 landed a StreamParser that pattern-matches Claude Code output into tool calls / prompts / activity / completion events. It uses fragile hardcoded regexes and captures zero events in real usage. Should pivot to Claude Code hooks."
+tags: ["augmentor", "claude-code", "honest-retro", "anti-pattern"]
+---
+
+## What was supposed to happen
+
+The augmentor was meant to parse a Claude Code session's stdout into structured events so the UI could overlay a friendlier surface (tool call cards, prompt confirmations, activity indicators) on top of the raw terminal.
+
+## What actually shipped
+
+`packages/augmentor/src/index.ts` (~137 lines) with four hardcoded regex families:
+
+```ts
+// Tool call: /^[●⏺•▸▶◆]\s*([A-Z][A-Za-z]+)\s*\(/
+// Prompt:    /^(Do you want|Approve|Confirm|...)/i
+// Activity:  /^(Thinking|Working|Processing|...)/i
+// Completion: /^(Done|Completed|Finished|✓|✅)/i
+```
+
+`terminalRegistry.ts` runs every PTY chunk through `parser.feed(...)` before writing to xterm, then ships any matched events to a `log_augmentor_event` Tauri command which writes them to the `augmentor` tracing target.
+
+In real usage: **zero events captured.** Claude Code's actual output doesn't start lines with the bullets I guessed, doesn't use the prompt phrases I guessed, doesn't print "Thinking..." the way I imagined. I built a parser for an output format I never read.
+
+Commit `5080baf` (StreamParser + log integration), `e5d587b` (TS unused-import fix).
+
+## Why this happened
+
+I extrapolated from one or two screenshots and design intuition instead of capturing a real session's stdout and grepping it. The parser was easy to write because I was matching imagination, not data. The Stop hook that would have caught the zero-event reality didn't fire on this commit because I'd skipped the log entry.
+
+## What's right instead
+
+Claude Code already exposes structured event data through its hooks system (`.claude/settings.json` → PostToolUse / UserPromptSubmit / Stop). That's the supported, stable channel. The augmentor should consume hook events, not screen-scrape the terminal stream. Phase 2.1 Stage 2 work.
+
+## Pattern
+
+When a parser is easy to write, suspect that you're parsing your model of the data, not the data. Capture one real sample before writing the second regex.

@@ -1,0 +1,40 @@
+---
+title: "Should DalkkakAI eventually move to Swift? Walked the blueprint to decide"
+date: "2026-05-27"
+project: "dalkkak-ai"
+kind: "tech-retro"
+visibility: "public"
+language: "en"
+summary: "Caught myself flirting with a Swift rewrite for 'Apple-grade UX.' Walked every layer of the BLUEPRINT and concluded the current product as designed has no part that *requires* Swift. Tauri stays unless the blueprint itself pivots."
+tags: ["architecture", "decision", "tauri", "swift"]
+---
+
+## The temptation
+
+The pull was emotional, not technical: native macOS apps feel better than webview-rendered ones, the Apple-26 era APIs (Liquid Glass, Foundation Models, Shortcuts) are alluring, and "I should know Swift better" is a tax I keep wanting to pay.
+
+## The check
+
+Walked every layer in `docs/BLUEPRINT.md` §5:
+
+| Layer | Requires Swift? | Notes |
+|---|---|---|
+| 1. Multi-pane terminal multiplexer | No | xterm.js on WebKit is already shipped |
+| 2. Multi-session orchestration | No | Rust handles the FS and process tree fine |
+| 3. Claude Code augmentation (parse output) | No | Pure string parsing, stack-agnostic |
+| 4. Viz layer (Mermaid, React Flow) | **No — reversed** | React Flow is web-only. Swift would *cost* here |
+| 5. Skills / templates | No | Static + conditional |
+| 6. Cross-startup dashboard | No | Display only |
+| 6b. Advisor agent (cloud) | No | Cloud backend, stack-agnostic |
+
+The blueprint also has `§6 "Why Tauri (not Electron, not Swift)"`, which explicitly cites *"native Swift would lock out Linux/Windows"* — Swift is already an excluded option in writing.
+
+`§9 Out of scope` excludes mobile. Even the strongest pure-Swift argument (iOS extension) is off the table.
+
+## Decision
+
+Tauri stays. Swift is justified only if the blueprint itself pivots (Mac App Store-only, iCloud sync, deep Shortcuts integration, Apple Intelligence on-device, or dropping cross-platform). None of those are in scope today.
+
+## Pattern
+
+When you feel like rewriting the runtime, walk the spec layer by layer and ask whether each layer *requires* the new runtime. "It would be nicer" is not a requirement. The blueprint section that already said no is usually the one you forgot you wrote.

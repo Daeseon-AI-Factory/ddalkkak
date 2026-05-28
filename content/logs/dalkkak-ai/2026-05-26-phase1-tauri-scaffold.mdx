@@ -1,0 +1,27 @@
+---
+title: "Phase 1.0 — Tauri 2.x scaffold under apps/desktop"
+date: "2026-05-26"
+project: "dalkkak-ai"
+kind: "tech-retro"
+visibility: "public"
+language: "en"
+summary: "Bootstrapped the actual Tauri app under apps/desktop, then deleted the placeholder apps/web and apps/api from the v1 bootstrap. First `pnpm tauri dev` opened a native window."
+tags: ["tauri", "scaffold", "monorepo"]
+---
+
+## What landed
+
+`apps/desktop/` came up as a clean Tauri 2.x project:
+- `src/` for the Vite + React + TypeScript renderer
+- `src-tauri/` for the Rust backend with `portable-pty`, `tokio`, `serde` declared in `Cargo.toml`
+- `tauri.conf.json` wired to the renderer dev server
+
+Commit `e942483` (scaffold) → `091062f` (Rust crates added) → `a4d2295` (deleted `apps/web` and `apps/api`).
+
+## Why I deleted apps/web + apps/api
+
+They were Hello-world stubs from the v1 bootstrap. Keeping them around as "maybe later" placeholders just confuses anyone who walks into the repo. `apps/desktop` is the only frontend that ever ships — the placeholder split was load-bearing only in the v1 architecture I'd already thrown out.
+
+## Pattern
+
+When you pivot, delete the dead scaffolding in the same commit range. Otherwise newcomers (including future-you) waste time trying to map the dead directories to live ones.

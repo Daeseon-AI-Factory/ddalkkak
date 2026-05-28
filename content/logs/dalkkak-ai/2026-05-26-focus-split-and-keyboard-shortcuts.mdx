@@ -1,0 +1,26 @@
+---
+title: "Focus-based split + keyboard shortcuts — iTerm's 50-year pattern, not a new one"
+date: "2026-05-26"
+project: "dalkkak-ai"
+kind: "ux-retro"
+visibility: "public"
+language: "en"
+summary: "First split UX put a button in the toolbar that always split the root. Replaced with focused-pane split + ⌘D / ⌘⇧D / ⌘W, matching what every terminal user has had muscle memory for since the 1970s."
+tags: ["ux", "shortcuts", "pattern"]
+---
+
+## What was wrong
+
+The initial Split button operated on the root of the mosaic tree, not on the currently focused pane. After a couple of splits you couldn't tell which pane the next click would affect — and there were no keyboard shortcuts at all.
+
+## What landed
+
+- Split is now scoped to the *focused* pane: `⌘D` (horizontal split), `⌘⇧D` (vertical), `⌘W` (close).
+- Startup-level navigation: `⌘1..9` (jump), `⌘⇧[` / `⌘⇧]` (prev/next).
+- Focus is tracked at the pane id level, not the mosaic path level, so it survives remounts.
+
+Commit `df83a6b` (focus-based split), `341bf28` (startup shortcuts), `4f72b48` (actually patched the keydown handler in App.tsx — the first attempt only wired the menu).
+
+## Pattern
+
+For a category as old as terminal multiplexers, the right defaults already exist — iTerm, tmux, and screen converged on the same shortcuts decades ago. The wedge is not in reinventing the bindings; it's in everything *around* them (multi-startup, persistence, BYO Claude Code). Saved a long argument with myself by copying conventions instead of designing them.

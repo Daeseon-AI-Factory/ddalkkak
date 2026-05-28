@@ -1,0 +1,36 @@
+---
+title: "Set up cross-repo blog log aggregation, then deduped CLAUDE.md against myself"
+date: "2026-05-27"
+project: "dalkkak-ai"
+kind: "update"
+visibility: "public"
+language: "en"
+summary: "I had written 6 timeline entries directly into the blog repo, missing that this repo is actually a cross-repo log satellite. Migrated them here, locked the slug in CLAUDE.md RULE #9, then audited and deduped #9 against an existing Project-log section I'd also missed."
+tags: ["meta", "ci", "claude-md", "cross-repo"]
+---
+
+## What I'd missed
+
+`daseon-blog` runs a cross-repo log aggregator: it fetches `content/logs/<slug>/*.mdx` from each satellite repo and renders the project timeline. The dual-write protocol (terse `docs/troubleshooting.md` + dated narrative `mdx`) is meant to live in the *product* repo, not the blog repo.
+
+I had instead written 6 mdx entries directly into `daseon-blog/content/logs/dalkkak-ai/`. They rendered, but they were in the wrong home.
+
+## What I did
+
+1. **Slug auto-detection.** `git remote get-url origin` → `Daeseon-AI-Factory/ddalkkak`. Scanned `daseon-blog/content/projects/en/*.mdx`, found the one whose `repo:` field matched → slug = `dalkkak-ai`.
+2. **Migrated** the 6 mdx files from `daseon-blog` into `ddalkkak/content/logs/dalkkak-ai/` (verbatim, via raw.githubusercontent.com).
+3. **Locked the slug** in `CLAUDE.md` as RULE #9 so a future agent doesn't re-detect.
+
+Commit `c13eb82`.
+
+## Then I audited the add and found I'd duplicated an existing section
+
+`CLAUDE.md` already had a `"Project log (required, dual-write)"` section right after RULE #8 with the full dual-write protocol, 7 anti-hallucination rules, visibility defaults, and Stop-hook skip rule. My RULE #9 was duplicating ~60% of it. It also conflicted on the slug — the existing section's frontmatter sample said `project: "ddalkkak"` (placeholder), my RULE #9 said `project: "dalkkak-ai"` (correct).
+
+Fixed: trimmed RULE #9 to *only* lock the slug + defer protocol to the existing section, and rewrote the existing section's placeholder to the real slug. Commit `220567a`.
+
+## Pattern
+
+Before adding a new RULE to a doc you didn't author from scratch, `grep "^##" CLAUDE.md` first. The thing you're about to add probably already exists in a slightly different form. Twice in two days I introduced the same bug — building on top of systems whose existence I'd missed because they were added in the conversation window I'd already lost.
+
+The fix is procedural, not architectural: read the whole governing doc before editing it, especially after a context compact.

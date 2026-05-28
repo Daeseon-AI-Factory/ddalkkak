@@ -1,0 +1,36 @@
+---
+title: "Phase 1.2 — first PTY pane streaming output to xterm.js"
+date: "2026-05-26"
+project: "dalkkak-ai"
+kind: "tech-retro"
+visibility: "public"
+language: "en"
+summary: "Wired portable-pty in Rust to xterm.js in the renderer through Tauri commands + events. Typing `ls` in a freshly opened pane echoed back. First moment the app felt real."
+tags: ["pty", "tauri", "xterm"]
+---
+
+## What landed
+
+Four Tauri commands keyed by a pane id:
+
+```rust
+#[tauri::command] fn pty_spawn(window, id, cols, rows, state) -> Result<(), String>
+#[tauri::command] fn pty_write(id, input, state)              -> Result<(), String>
+#[tauri::command] fn pty_resize(id, cols, rows, state)        -> Result<(), String>
+#[tauri::command] fn pty_kill(id, state)                      -> Result<(), String>
+```
+
+Plus a `pty-output` event the Rust read loop emits on every chunk:
+
+```rust
+let event = PtyOutputEvent { id: id.clone(), data: chunk };
+window.emit("pty-output", event);
+```
+
+Renderer subscribed via `listen<PtyOutputEvent>("pty-output", ...)` and forwarded `term.onData` back via `pty_write`. Round-trip worked on first try.
+
+Commit `3545057`.
+
+## Pattern
+
+Stream PTY output via events, not via polled commands. Tauri commands are request/response — a `pty_read` command would force the renderer to poll, which fights xterm's natural write cadence. Events match the underlying stream.

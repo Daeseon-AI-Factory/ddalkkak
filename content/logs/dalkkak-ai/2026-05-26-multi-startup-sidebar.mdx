@@ -1,0 +1,27 @@
+---
+title: "Multi-startup sidebar — N startups in one workspace, each with its own layout"
+date: "2026-05-26"
+project: "dalkkak-ai"
+kind: "tech-retro"
+visibility: "public"
+language: "en"
+summary: "Phase 1.4 Step 1: introduced the Startup as a first-class concept. Sidebar lists startups, each owns its own pane layout. Right-click for rename / change emoji / delete."
+tags: ["multi-startup", "architecture", "sidebar"]
+---
+
+## Why this is the wedge, not just a sidebar
+
+Warp, iTerm, BridgeMind, and every Electron-based terminal app assume "one project per window." That assumption breaks the moment you're running three startups in parallel and each one needs its own `claude`, dev server, and log tail. Multi-startup as a first-class citizen — not a tabs-with-emojis hack — is the only piece of the v0.1.0 surface that competitors don't already do.
+
+## What landed
+
+- `apps/desktop/src/Sidebar.tsx` lists startups with emoji + name.
+- `apps/desktop/src/startups.ts` is the model + localStorage adapter.
+- The mosaic layout is keyed by active startup id; switching startups swaps the entire layout in.
+- Right-click context menu on a startup row: rename / change emoji / delete.
+
+Commits: `bf0bcc4` (sidebar + per-startup layout), `aa05945` (rename / change-emoji / delete via right-click).
+
+## Pattern
+
+When a competitor's product is built around an assumption you don't share, the cleanest way to differentiate isn't a better version of their thing — it's making the assumption optional. "Per project" → "per N projects, switch with one keystroke" is structural, not aesthetic.
