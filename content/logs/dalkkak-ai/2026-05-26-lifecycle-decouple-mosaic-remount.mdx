@@ -1,0 +1,64 @@
+---
+title: "react-mosaic remounts killed running Claude sessions — moved xterm + PTY out of React"
+date: "2026-05-26"
+project: "dalkkak-ai"
+kind: "tech-retro"
+visibility: "public"
+language: "en"
+summary: "Splitting a pane changed its path in the mosaic tree, which React treated as an unmount, which fired the cleanup effect, which killed the PTY — and the running `claude` session with it. Fixed by hoisting xterm and the PTY out of React entirely."
+tags: ["react", "lifecycle", "pty", "architecture", "vscode-pattern"]
+---
+
+## Symptom
+
+Open a pane, run `claude` inside it, then split or stack the pane. The original pane went blank and the Claude session was gone. The new pane started a fresh shell.
+
+## Cause
+
+`react-mosaic-component` keys panes by their *path* in the layout tree. Splitting a pane changes the existing pane's path (e.g. `first` becomes `first.first`). React sees a new key, unmounts the old component, mounts a new one at the new path. The old component's `useEffect` cleanup fires and calls `pty_kill` — destroying the long-running process underneath.
+
+The lifetime of `claude` belongs to the *pane's identity*, not to a React component's mount cycle.
+
+## Fix
+
+Move xterm and the PTY subscription out of React into a module-level registry. The React component becomes a thin attachment point — it grabs `term.element` from the registry on mount and re-parents it into the DOM. Unmount no longer destroys anything; only an explicit Close / Reset action does.
+
+```ts
+// apps/desktop/src/terminalRegistry.ts
+const registry = new Map<string, RegistryEntry>();
+
+export function getOrCreateTerminal(id: string): RegistryEntry {
+  const existing = registry.get(id);
+  if (existing) return existing;        // reuse across remounts
+
+  const term = new Terminal({ /* ... */ });
+  const fit = new FitAddon();
+  term.loadAddon(fit);
+
+  const entry: RegistryEntry = { term, fit, unlisten: null, spawned: false /* ... */ };
+  registry.set(id, entry);
+
+  // Subscription survives remounts because it's module-scoped, not effect-scoped.
+  void (async () => {
+    const off = await listen<PtyOutputEvent>("pty-output", (event) => {
+      if (event.payload.id === id) term.write(event.payload.data);
+    });
+    entry.unlisten = off;
+  })();
+
+  return entry;
+}
+
+export async function destroyTerminal(id: string): Promise<void> {
+  // Call this from an EXPLICIT user action (Close button), NEVER from useEffect cleanup.
+  // ...
+}
+```
+
+Commit: `00498b9`. The pattern is the same one VS Code uses for its terminal hosting.
+
+## Pattern
+
+When the lifetime of "the thing on screen" doesn't match the lifetime of "the React component drawing it" — hoist the thing out of React. React's lifecycle is for UI state, not for owning external processes or sockets.
+
+In hindsight this is the single biggest win in Phase 1. Without it the multi-pane feature looks like it works in a demo but destroys real work as soon as the user touches the layout.

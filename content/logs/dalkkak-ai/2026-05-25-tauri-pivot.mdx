@@ -1,0 +1,38 @@
+---
+title: "Pivoting v1 (Python/FastAPI) to v2 (Tauri + Rust + React)"
+date: "2026-05-25"
+project: "dalkkak-ai"
+kind: "tech-retro"
+visibility: "public"
+language: "en"
+summary: "Started DalkkakAI as a web app over a FastAPI backend, then realised the core feature — driving the user's local Claude Code binary — is technically impossible in a browser sandbox. Pivoted to Tauri the same day and froze v1 under old_repo/."
+tags: ["architecture", "decision", "tauri", "pivot"]
+---
+
+## Context
+
+DalkkakAI's job is to host the user's *own* Claude Code / Codex sessions in a multi-pane workspace. I'd bootstrapped v1 as `apps/web` (React) + `apps/api` (FastAPI / Python) on Vercel + Fly, assuming I could proxy PTY traffic through the cloud.
+
+## Decision
+
+Throw away the web/cloud framing and rebuild as a Tauri 2.x desktop app:
+
+- Renderer: Vite + React 19 + TypeScript + xterm.js + react-mosaic
+- Backend: Rust (portable-pty, tokio, serde) inside `src-tauri/`
+- Old Python prototype moved unchanged into `old_repo/` for reference
+
+Commit trail: `339f6e1` (migrate v1) → `d558213` (bootstrap v2 monorepo) → `7f64ff2` (Tauri pivot docs).
+
+## Why
+
+Browser sandboxing prohibits direct PTY / process spawn. A cloud web app cannot drive the user's local `claude` binary, and I cannot host the user's API key for them either. **Web-only is technically incapable of solving the actual pain.**
+
+The other forced choice came with it: native lightweight matters when the workspace will hold N startups × M panes. Tauri's ~10 MB bundle on top of system WebKit plus a Rust backend is a much better fit than Electron, and pure Swift would have locked out Linux/Windows for no compensating wedge.
+
+## What stayed
+
+The pnpm monorepo, the TypeScript-everywhere rule, and `docs/BLUEPRINT.md` as canonical reference all carried over. Only `apps/web` and `apps/api` got nuked in commit `a4d2295`.
+
+## Pattern
+
+Test the constraint *before* the bootstrap, not after. A 60-second "can a browser tab spawn a subprocess?" check would have saved a half-day of writing the wrong shell. When the product's core verb is "drive a local binary", the runtime is not a free decision — it's already constrained.

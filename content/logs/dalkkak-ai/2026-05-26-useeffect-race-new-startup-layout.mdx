@@ -1,0 +1,42 @@
+---
+title: "useEffect race ate the layout of every freshly-created startup"
+date: "2026-05-26"
+project: "dalkkak-ai"
+kind: "troubleshoot"
+visibility: "public"
+language: "en"
+summary: "New startups appeared in the sidebar fine, but their pane layout disappeared on the next launch. Two effects (Load and Save) were racing on the initial render, and the Load effect's stale closure was overwriting the Save."
+tags: ["react", "useeffect", "race-condition", "persistence"]
+---
+
+## Symptom
+
+1. Create a new startup (e.g. `photo-ai`).
+2. Open a pane, see it render.
+3. Restart the app.
+4. The startup is still in the sidebar — but its layout slot is empty, the pane is gone.
+
+Existing startups persisted correctly. Only *newly created* startups lost their layout.
+
+## Cause
+
+The active-startup-id state had two effects bound to it:
+
+- **Load effect** — when active id changes, read layout for that id from localStorage and set it in component state.
+- **Save effect** — when layout in component state changes, write it back to localStorage under the active id.
+
+On a brand new startup, both effects fired on the same tick. The Load effect captured an empty initial layout in its closure. Once the Save effect wrote the user's real layout, the Load effect's stale closure overwrote it back to empty before the storage round-trip settled.
+
+## Fix
+
+Three layers of defence:
+
+1. **Synchronously seed the layout when the startup is created**, so the Load effect never reads "nothing for this id".
+2. **Synchronously save inside the Load effect** when it finds nothing — pin a known baseline before the Save effect runs.
+3. **Null-guard the Save effect** so it never writes `null` over a real value.
+
+Commit: `51cac0a`. Documented as a six-section post-mortem in `docs/ISSUES.md`.
+
+## Pattern
+
+Two effects keyed off the same state, one reading and one writing the same store, will race on the first render of a new entity. The cleanest fix is to remove the race outright (synchronous seed at creation time), not to choreograph the effect order. If you find yourself reasoning about effect ordering, the data model is already wrong.

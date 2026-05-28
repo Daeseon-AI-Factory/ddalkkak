@@ -1,0 +1,73 @@
+---
+title: "Tauri GUI bundle's minimal PATH made tmux silently exit"
+date: "2026-05-26"
+project: "dalkkak-ai"
+kind: "troubleshoot"
+visibility: "public"
+language: "en"
+summary: "Panes printed `[exited]` and seemed to share sessions because `CommandBuilder::new(\"tmux\")` couldn't resolve the binary — the GUI app's inherited PATH didn't include /opt/homebrew/bin."
+tags: ["tauri", "pty", "tmux", "path", "subprocess"]
+---
+
+## Symptom
+
+After switching from a bare shell to a tmux-backed shell per pane, every newly opened pane immediately rendered `[exited]`, and panes opened afterwards looked like they were sharing output with the first one.
+
+## Cause
+
+Two coupled problems.
+
+1. **Tauri's GUI process inherits a minimal PATH** — typically `/usr/bin:/bin:/usr/sbin:/sbin`, not the user's interactive-shell PATH. Homebrew binaries (`/opt/homebrew/bin/tmux`) were not on it.
+2. **`CommandBuilder::new("tmux")` failed silently.** The spawn errored out before any output reached the renderer, the PTY simply closed, and xterm rendered the close as `[exited]`. With no visible error to read, it *looked* like the panes were sharing one session.
+
+## Fix
+
+Three changes in `apps/desktop/src-tauri/src/pty.rs`:
+
+```rust
+// 1. Resolve tmux against known absolute paths before trusting PATH.
+fn find_tmux() -> String {
+    let candidates = [
+        "/opt/homebrew/bin/tmux", "/usr/local/bin/tmux",
+        "/usr/bin/tmux",          "/opt/local/bin/tmux",
+    ];
+    for path in &candidates {
+        if Path::new(path).exists() { return path.to_string(); }
+    }
+    "tmux".to_string()
+}
+
+// 2. Augment PATH for the child process.
+fn augmented_path() -> String {
+    let extra = "/opt/homebrew/bin:/usr/local/bin";
+    match std::env::var("PATH") {
+        Ok(p) if p.contains("/opt/homebrew/bin") || p.contains("/usr/local/bin") => p,
+        Ok(p) => format!("{}:{}", extra, p),
+        Err(_) => format!("{}:/usr/bin:/bin", extra),
+    }
+}
+
+// 3. Wrap the tmux invocation in bash so a failure surfaces *visibly*.
+let cmd_str = format!(
+    "{tmux} new-session -A -D -s {sess} 2>&1; \
+     status=$?; \
+     if [ $status -ne 0 ]; then \
+       echo ''; \
+       echo '⚠️  tmux exited with code '$status'. tmux_path='{tmux}; \
+       echo 'Falling back to interactive shell. Try: tmux ls'; \
+     fi; \
+     exec ${{SHELL:-/bin/bash}}",
+    tmux = tmux_path, sess = tmux_session,
+);
+```
+
+Commit: `4ad76e7`. Codified as `CLAUDE.md` RULE #5c ("wrap fallible binaries with a visible error path") and RULE #5d ("PTY EOF must be visible").
+
+## Pattern
+
+Two compounding rules for any subprocess in a GUI app:
+
+- **The GUI app's PATH is not your shell's PATH.** Augment it explicitly, and resolve known-location binaries by absolute path.
+- **A silent spawn failure looks like a hung pane.** Always wrap fallible binaries so their failure prints something the user can read.
+
+A frozen pane with no output is the worst possible UX — the user can't tell whether the process died, is hung, or is just slow.

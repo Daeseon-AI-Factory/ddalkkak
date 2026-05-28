@@ -169,3 +169,94 @@ When debugging a user-reported issue:
 When making a new architectural decision in this session: check `logs/prompts.jsonl` for the prompt that drove it (raw material for the post-mortem's prompt-quality blame section).
 
 Never log: passwords, tokens, API keys, PII. tracing macros accept structured fields — use them for IDs and counts, not for raw user input.
+
+
+## Project log (required, dual-write)
+
+When you fix or decide something non-trivial in this repo, write BOTH of these in the same turn as the commit:
+
+1. `docs/troubleshooting.md` — terse problem-indexed reference (Symptom / Cause / Fix / Commit / Pattern). Append a new entry below the `---` divider.
+2. `content/logs/<project-slug>/<YYYY-MM-DD>-<short-slug>.mdx` — dated narrative with frontmatter:
+
+```yaml
+---
+title: "Concrete one-line title"
+date: "YYYY-MM-DD"
+project: "ddalkkak"
+kind: "troubleshoot | tech-retro | ux-retro | business | monetization | update"
+visibility: "public | unlisted | private"
+language: "en"
+summary: "One or two sentences."
+tags: ["topic", "stack"]
+---
+```
+
+### What counts as non-trivial
+
+LOG IT: build/deploy errors, hidden coupling, dependency migrations, architecture or infra decisions, design/copy choices made on judgment, strategy or pricing memos.
+
+DON'T LOG: routine renames, lint fixes, typo fixes, dependency bumps with no behavior change, formatting commits.
+
+### Anti-hallucination rules (non-negotiable)
+
+1. **Symptom is literal.** Paste the actual error/output in a fenced code block. No paraphrasing.
+2. **Cause is verified.** Only state what you read in the actual code or ran in the actual command. If you guessed, write `Hypothesis: ...` and `Verified by: ...`. If unverifiable, omit Cause or mark `Suspected:` with an explicit caveat.
+3. **Fix names actual files.** `git diff` is the source of truth. If `git diff` doesn't show the change, don't claim you made it.
+4. **Commit hash AFTER committing.** Use `git rev-parse HEAD` after the commit lands. Never write a hash that doesn't exist yet.
+5. **Date from git.** `git log -1 --format=%cI` for the commit time. For forward-looking entries (decisions being written in the moment), today's date from the session start. Never guess.
+6. **Pattern is rare.** Only write a Pattern line if a recurring lesson is obvious from this one incident. Padding it with generic advice is worse than omitting.
+7. **No fabricated metrics.** "Took about 60s" if you saw 60s. "Took 1m 23s exactly" only if you have the timestamp.
+
+### Visibility defaults by kind
+
+- `business`, `monetization` → `private` by default (strategy memos shouldn't ship accidentally)
+- `knowledge`-style facts → `unlisted` if you have such a type
+- Everything else → `public`
+
+Override per entry in frontmatter.
+
+### Skip rule for routine commits
+
+The Stop hook blocks the turn until the most recent commit is either logged OR explicitly marked routine. To skip without writing an entry:
+
+- Option A — put `[no-log]` (or `[skip-log]`) anywhere in the commit message. The hook auto-appends a `<!-- skipped: <hash> <subject> -->` line to `docs/troubleshooting.md` so it stops firing.
+- Option B — append the same `<!-- skipped: <hash> <subject> -->` line yourself, then commit. Same effect.
+
+Routine = typo fix, lint fix, formatting commit, dep bump without behavior change, file rename. Anything else: write the entry.
+---
+
+## RULE #9 — Cross-repo blog log slug (added 2026-05-27)
+
+This repo is a **satellite of the `daseon-blog` cross-repo log aggregator**. The blog at <https://daeseon.ai> fetches log mdx files from this repo and renders them on the project timeline page.
+
+**Slug for this repo (locked-in, do NOT re-detect): `dalkkak-ai`**
+
+All non-trivial changes / debugging / decisions must be written as a log entry in:
+
+```
+content/logs/dalkkak-ai/<YYYY-MM-DD>-<short-slug>.mdx
+```
+
+Frontmatter requirements:
+
+```yaml
+---
+title: "한 줄 제목"
+date: "2026-05-27"            # ALWAYS quoted! unquoted ISO date is parsed as a
+                              # Date object by js-yaml and breaks the blog build.
+project: "dalkkak-ai"         # exact slug above, lowercase, hyphenated
+kind: troubleshoot | tech-retro | ux-retro | business | monetization | update
+visibility: "public"
+language: "en"
+summary: "One sentence — what happened + outcome."
+tags: ["tag1", "tag2"]
+---
+```
+
+Body conventions (match existing `content/logs/dalkkak-ai/*.mdx`):
+- First-person English. Terse, direct.
+- For `troubleshoot` kind: use `## Symptom` / `## Cause` / `## Fix` / `## Pattern` sections.
+- Quote actual errors, log lines, code, commit hashes verbatim — no paraphrasing.
+- Mark anything not directly verified with `[unverified: <claim>]`. Don't fabricate.
+
+After pushing, the blog auto-refreshes the timeline at `https://daeseon.ai/projects/dalkkak-ai/` within ~30 seconds.

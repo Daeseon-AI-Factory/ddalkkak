@@ -1,0 +1,49 @@
+---
+title: "claude --resume took 15s inside the DalkkakAI PTY"
+date: "2026-05-26"
+project: "dalkkak-ai"
+kind: "troubleshoot"
+visibility: "public"
+language: "en"
+summary: "The same `claude --resume` finished instantly in iTerm but hung for ~15 seconds in a freshly spawned DalkkakAI pane. Cause was a near-empty environment in the PTY child."
+tags: ["tauri", "pty", "environment", "claude-code"]
+---
+
+## Symptom
+
+Open a fresh pane → run `claude --resume`:
+
+- In iTerm / Terminal.app: prompt returns in ~1 s.
+- In a DalkkakAI pane: visible ~15 s freeze before the same prompt appears.
+
+Same machine, same binary, same shell. The only thing that changed was *who spawned the PTY*.
+
+## Cause
+
+`portable-pty` does not inherit the GUI app's full environment by default. The child shell ended up with effectively no `TERM`, no `LANG`, no locale info, no `HOME` hint. Tools that probe the terminal (curses-style detection, locale negotiation, completion engines) fall through long fallback paths when these are missing — that's the 15 seconds.
+
+## Fix
+
+Explicitly set the variables the spawn library was leaving out.
+
+```rust
+// apps/desktop/src-tauri/src/pty.rs
+cmd.env("TERM", "xterm-256color");
+cmd.env("COLORTERM", "truecolor");
+cmd.env("PATH", augmented_path());
+
+for var in [
+    "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "LC_CTYPE",
+    "TZ", "SHELL", "PWD", "TMPDIR",
+] {
+    if let Ok(val) = std::env::var(var) {
+        cmd.env(var, val);
+    }
+}
+```
+
+Commit: `1cfebbc`. Codified the rule as `CLAUDE.md` RULE #5b ("subprocess env hygiene"): never assume the GUI app's inherited env is enough.
+
+## Pattern
+
+A minimal shell inside a GUI-app bundle is a different animal from a shell launched by a terminal emulator. Anything that "auto-detects the terminal" can collapse into a slow path when basic vars are missing. When a subprocess behaves slower than the same command in iTerm, suspect environment before logic.

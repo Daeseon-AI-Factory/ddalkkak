@@ -1,0 +1,52 @@
+---
+title: "DalkkakAI v0.1.0 — Phase 1 shipped as an unsigned beta"
+date: "2026-05-27"
+project: "dalkkak-ai"
+kind: "tech-retro"
+visibility: "public"
+language: "en"
+summary: "Multi-pane terminal with tmux persistence and a multi-startup sidebar, in 309 lines of Rust and 14 TypeScript files. Tagged v0.1.0; unsigned, macOS Apple Silicon only, zero users yet."
+tags: ["release", "tauri", "milestone"]
+---
+
+## What's in v0.1.0
+
+- Multi-pane terminal grid (react-mosaic) over per-pane PTYs (portable-pty).
+- Each pane is backed by a tmux session keyed `dalkkak-<pane-id>`, so `claude`, dev servers, and log tails survive an app restart.
+- Multi-startup sidebar with per-startup layout; `⌘1..9` / `⌘⇧[` / `⌘⇧]` navigation.
+- Layout JSON persistence in localStorage, automatic reattach on launch.
+- Two-layer observability:
+  - Claude Code hooks → `logs/{actions,edits,prompts,sessions}.jsonl` (dev-time)
+  - Rust `tracing` → daily-rolling `~/Library/Logs/DalkkakAI/runtime.log` (runtime)
+
+## What it took
+
+A multi-day sprint, ~40 commits, with Claude Code as the pair-programmer. Final size:
+
+```
+$ find apps/desktop/src-tauri/src -name "*.rs" | xargs wc -l
+     133 apps/desktop/src-tauri/src/lib.rs
+       6 apps/desktop/src-tauri/src/main.rs
+     170 apps/desktop/src-tauri/src/pty.rs
+     309 total
+
+$ find apps/desktop/src -name "*.ts*" | wc -l
+      14
+```
+
+Most of the engineering value isn't in the line count — it's in the four shipped-and-documented bugs that each got a six-section post-mortem in `docs/ISSUES.md` (PTY env, GUI PATH, lifecycle decouple, useEffect race). The repo enforces that protocol via `CLAUDE.md` RULE #6: "issues are assets."
+
+## What's *not* in v0.1.0
+
+Honest scope:
+
+- **Not signed.** Users have to `xattr -cr` the bundle or right-click → Open on first launch.
+- **macOS Apple Silicon only.** The cross-platform Tauri build pipeline isn't wired.
+- **Phase 2 (Claude Code augmentation), Phase 3 (operator layer), Phase 4 (marketplace) are roadmap only.** A first-pass `StreamParser` exists but uses hardcoded regexes that don't match real Claude Code output — proper integration via Claude Code hooks is the right path and hasn't been written yet.
+- **Production users: zero.** The Phase 1.5 dogfood test (replace 12 macOS desktops for one full week) hasn't run.
+
+## Pattern
+
+Ship the smallest thing that proves the architecture, then write down what's missing in the same breath. The README and `docs/RESUME.md` both lead with what *isn't* there — the alternative (a louder "v1.0 launched!" announcement on the same artifact) would burn more credibility than it earns.
+
+Repo: <https://github.com/Daeseon-AI-Factory/ddalkkak>
