@@ -39,7 +39,10 @@ export function getOrCreateTerminal(id: string): RegistryEntry {
 
   const term = new Terminal({
     cursorBlink: true,
-    fontFamily: 'Menlo, "JetBrains Mono", "SF Mono", monospace',
+    // "Apple SD Gothic Neo" (always present on macOS) is a CJK fallback so Hangul
+    // renders as real glyphs (not tofu/boxes) once the UTF-8 locale fix lets the
+    // bytes through. ASCII still uses Menlo first. See pty.rs RULE #5b note + ISSUES.
+    fontFamily: 'Menlo, "JetBrains Mono", "SF Mono", "Apple SD Gothic Neo", monospace',
     fontSize: 13,
     theme: { background: "#0f172a", foreground: "#e2e8f0" },
     scrollback: 10000,

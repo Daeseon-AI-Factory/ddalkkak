@@ -287,3 +287,48 @@ Three small changes in `App.tsx`:
   - **Synchronously persist on mutation** at the call site (the chosen fix — `createStartup` writes immediately).
 - **Null-guard persistence effects**: treat `localStorage.setItem(key, null)` as "I don't actually mean this." Either skip or use an explicit `removeKey` action driven by user intent (Reset), not transient render state.
 - **Backlog idea**: consider migrating off "render-driven persistence" to a dedicated store (Zustand, Jotai, valtio) that owns the lifecycle. Added to `BACKLOG.md` under UX.
+
+---
+
+## 2026-05-30 — Korean/CJK input in tmux + WKWebView: underscores, then a WKWebView IME jamo leak (partially fixed)
+
+### 1. Symptom
+Two distinct symptoms while dogfooding Korean input in a pane:
+
+1. Korean rendered as underscores only (English fine):
+```
+한글 → __
+```
+2. After the locale fix, Korean leaked as decomposed jamo — composition never grouped into syllables:
+```
+안녕 → ㅇㄴㅎ...
+afaf□ □ ㄹ □ ㄴ ㅎ 세 요   ㅇ ㄴ ㅎ 요
+```
+Also surfaced (separate macOS TCC issue, not fixed here): `ls: .: Operation not permitted` in `~/Documents/GitHub`.
+
+### 2. Root cause
+Two independent causes, both verified:
+
+1. **tmux non-UTF-8 mode.** `pty.rs` forwarded `LANG`/`LC_*` only if already set (pty.rs:110–117), with no UTF-8 default. A Finder/Dock-launched GUI bundle inherits essentially no locale → tmux runs non-UTF-8 → substitutes `_` for every multibyte char. A Hangul syllable (3 bytes / width 2) surfaced as `__`. ASCII untouched → English worked.
+2. **WKWebView fires NO DOM composition events for a textarea created before its input method is ready.** Pinned down with temporary instrumentation logging composition/keydown/`inputType` to the Rust `runtime.log`: panes created at app launch fired ZERO `compositionstart/update/end` and `isComposing` was always `false` → xterm sent every intermediate composition step to the PTY (jamo leak). Panes created later (via split, after the webview is ready) fired composition events correctly and worked. xterm's `CompositionHelper` has NO isSafari/platform check — it relies purely on these events.
+
+### 3. Fix
+- **`pty.rs` (RULE #5b extended):** default `LANG`/`LC_CTYPE=en_US.UTF-8` when the inherited `LANG` is absent or non-UTF-8. → `__` **RESOLVED.**
+- **`terminalRegistry.ts`:** appended `"Apple SD Gothic Neo"` (always present on macOS) to xterm `fontFamily` so Hangul renders as glyphs, not tofu.
+- **`tauri.conf.json`:** webview `userAgent` set to a Safari string so xterm's `isSafari` (Platform.ts) detects WKWebView (xterm #3575). NOTE: this does NOT fix the IME composition (CompositionHelper has no isSafari check — verified); kept as the correct platform-detection config for xterm-in-WKWebView.
+- **First-pane WKWebView composition: UNRESOLVED.** Workaround: split (a freshly-created pane binds IME correctly). Deferred to `BACKLOG.md`.
+
+### 4. Was the instruction at fault? (prompt-quality)
+**Score: AI-side, mostly.** The human prompts were good — "한글이 `__`로 나온다", and especially "split하면 되는데 첫 pane은 안 된다" precisely localized the bug. The AI (me) shipped TWO wrong patches before verifying:
+- Guessed the `userAgent`/`isSafari` fix would solve IME — only AFTER shipping did I read `CompositionHelper` and confirm it has no isSafari check. Should have verified the mechanism first.
+- Shipped a "recreate the terminal once ready" fix that fired on EVERY remount (no once-guard) → recreated/disposed terminals on split → **broke the previously-working split panes.** Regressed a working case inside the delicate terminal-lifetime code.
+
+### 5. Was it avoidable? (engineering hindsight)
+- The two root causes were genuinely obscure (tmux locale detection + WKWebView composition-event timing) — not common knowledge; needed instrumentation to pin down. That instrumentation (log events → `runtime.log` → read) was the right move and should have come *sooner* instead of guessing.
+- The recreation regression was **fully avoidable**: a change to the terminal-lifetime registry (the repo's most fragile code) shipped without a once-guard and without testing the split path. `if (imeGen > 0) recreate()` re-ran on every effect pass.
+
+### 6. Lessons / Preventive measures
+- **Verify the mechanism before patching the core surface.** Capture ground truth first — here a passive event logger to `runtime.log` nailed it in one pass; two prior guesses cost trust.
+- **One-time effects need a guard, and changes to terminal-lifetime code must test the split/remount path before shipping.** That registry is where a regression breaks everything.
+- **Diagnostic-logging-to-`runtime.log` is a reusable pattern** for renderer-side bugs we can't observe directly — and a live mini-instance of the connective-layer "agents are sensors → standard sink" thesis (BLUEPRINT §5.5).
+- **BACKLOG:** first-pane WKWebView IME (textarea created before IME-ready never binds; "recreate-keeping-PTY" is the right idea but must be once-guarded + tested). Workaround until then: split.

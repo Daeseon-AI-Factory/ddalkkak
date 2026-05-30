@@ -115,6 +115,24 @@ pub fn spawn(window: Window, id: String, cols: u16, rows: u16) -> Result<PtySess
             cmd.env(var, val);
         }
     }
+
+    // RULE #5b (extended 2026-05-29) — DEFAULT a UTF-8 locale, don't merely forward.
+    // A Finder/Dock-launched GUI bundle inherits essentially no LANG, so tmux (and the
+    // inner shell + every child program) falls back to non-UTF-8 mode and replaces each
+    // multibyte char with '_'. A Hangul syllable (3 bytes / width 2) thus surfaced as
+    // "__". Forwarding (above) only helps if the var was already set; here we backfill.
+    // Don't force LC_ALL — too aggressive; it would override a user's UTF-8 locale.
+    let lang_is_utf8 = std::env::var("LANG")
+        .map(|v| {
+            let u = v.to_uppercase();
+            u.contains("UTF-8") || u.contains("UTF8")
+        })
+        .unwrap_or(false);
+    if !lang_is_utf8 {
+        cmd.env("LANG", "en_US.UTF-8");
+        cmd.env("LC_CTYPE", "en_US.UTF-8");
+    }
+
     if let Ok(home) = std::env::var("HOME") {
         cmd.cwd(home);
     }

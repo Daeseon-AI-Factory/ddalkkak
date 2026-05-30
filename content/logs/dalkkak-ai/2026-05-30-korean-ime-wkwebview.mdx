@@ -1,0 +1,28 @@
+---
+title: "Korean in a Tauri terminal: tmux underscores, then a WKWebView IME jamo leak I half-fixed"
+date: "2026-05-30"
+project: "dalkkak-ai"
+kind: "troubleshoot"
+visibility: "public"
+language: "en"
+summary: "Dogfooding surfaced Korean typing as '__', then as decomposed jamo. The first was tmux running non-UTF-8 (GUI apps inherit no locale) — fixed. The second is WKWebView not firing composition events for a textarea created before its IME is ready — pinned down with runtime.log instrumentation, still unresolved (workaround: split). I also regressed the working split case once by shipping an unguarded fix."
+tags: ["tauri", "wkwebview", "xterm", "ime", "tmux", "korean"]
+---
+
+## Two bugs wearing one costume
+
+Typing Korean into a pane showed `한글 → __`. English was perfect. That asymmetry is the whole tell: an underscore is an ASCII byte, so the bytes were round-tripping fine — something downstream was *substituting* them.
+
+It was **tmux running in non-UTF-8 mode.** A Finder-launched Tauri bundle inherits essentially no locale, and `pty.rs` only *forwarded* `LANG`/`LC_*` when they were already set — no UTF-8 default. With no UTF-8 in the locale, tmux replaces every multibyte character with `_`; a Hangul syllable is 3 bytes / 2 cells → `__`. The fix is one block in `pty.rs`: default `LANG=en_US.UTF-8` when the inherited one is missing or non-UTF-8 (an extension of the repo's RULE #5b — *default* a locale, don't just forward it).
+
+## The second costume: jamo leak
+
+With `__` gone, Korean now leaked as decomposed jamo — `안녕 → ㅇㄴㅎ...`. I guessed twice and was wrong twice (a userAgent/`isSafari` tweak; then a terminal-recreation that regressed the working split panes). Both cost trust. So I stopped guessing and instrumented: a passive listener logging every `compositionstart/update/end`, `keydown`, and `inputType` to the Rust `runtime.log`, which I can actually read.
+
+The capture was unambiguous: panes created **at app launch** fired *zero* composition events and `isComposing` was always false → xterm couldn't buffer the IME and shipped every intermediate jamo to the PTY. Panes created **after the webview was ready** (via split) fired composition events correctly and worked. So: **WKWebView doesn't bind IME to a textarea created before its input method is ready, and a blur/focus can't repair it — only a freshly-created textarea binds.** xterm's `CompositionHelper`, for the record, has no platform check at all; it relies purely on those events.
+
+## Where it landed
+
+`__` is fixed; Hangul renders as glyphs (added an `Apple SD Gothic Neo` fallback). The first-pane composition is **unresolved** — the honest workaround is to split once, which gives a freshly-bound pane. "Recreate the launch pane's terminal once the webview is ready, keeping its PTY/tmux session" is the right idea, but my first cut fired on every remount and broke split; it goes back to the backlog to be done once-guarded and tested.
+
+The reusable win: **instrument → standard sink → read** beat guessing every time, and it's a live miniature of the platform thesis we just locked into the blueprint — agents emitting standard-format records that a reader can query. Full failure analysis in `docs/ISSUES.md` (2026-05-30).
