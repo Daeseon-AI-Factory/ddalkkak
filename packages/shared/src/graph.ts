@@ -57,3 +57,35 @@ export function clampTitle(s: string, max = 200): string {
   const t = s.replace(/\s+/g, " ").trim();
   return t.length > max ? `${t.slice(0, max - 1)}…` : t;
 }
+
+// ── Edges (viz layer) ────────────────────────────────────────────────────────
+// A typed, directed relationship between two nodes. Additive per the migration
+// policy above. v1 edges are derived client-side (consecutive `change` nodes per
+// startup chained by time); later the backend emits real ones. Shape mirrors
+// viz-core's `depgraph` deps, ported from /aicore/viz-agents (reference only).
+
+export type EdgeKind =
+  | "caused_by"   // node was caused by another (e.g. a change caused by an issue)
+  | "triggers"    // node triggers another
+  | "blocked_by"  // node is blocked by another
+  | "depends"     // structural dependency
+  | "relates";    // generic / temporal adjacency (v1 derived chains)
+
+export interface GraphEdge {
+  schema_version: number;
+  /** Deterministic join key: `<from>__<kind>__<to>`. */
+  edge_id: string;
+  /** Source `node_id`. */
+  from: string;
+  /** Target `node_id`. */
+  to: string;
+  kind: EdgeKind;
+  provenance: Provenance;
+  /** Provenance receipt (REQUIRED for confirmed edges, like nodes). */
+  evidence?: GraphEvidence;
+}
+
+/** Build a deterministic edge id from its endpoints + kind. */
+export function edgeId(from: string, kind: EdgeKind, to: string): string {
+  return `${from}__${kind}__${to}`;
+}

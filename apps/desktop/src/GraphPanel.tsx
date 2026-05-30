@@ -5,6 +5,9 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { GraphNode } from "@ddalkkak/shared";
+import { ActivityView } from "./viz/ActivityView";
+import { VizDemo } from "./viz/VizDemo";
+import { useT } from "./i18n";
 
 interface Props {
   startups: { id: string; name: string; emoji: string }[];
@@ -18,8 +21,10 @@ const PROV_COLOR: Record<string, string> = {
 };
 
 export function GraphPanel({ startups, onClose }: Props) {
+  const { t } = useT();
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<"graph" | "list" | "demo">("graph");
 
   const refresh = async () => {
     setLoading(true);
@@ -58,8 +63,9 @@ export function GraphPanel({ startups, onClose }: Props) {
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: "min(900px, 90vw)",
-          maxHeight: "80vh",
+          width: "min(1500px, 96vw)",
+          height: "92vh",
+          maxHeight: "92vh",
           overflow: "auto",
           background: "#0f172a",
           color: "#e2e8f0",
@@ -77,13 +83,22 @@ export function GraphPanel({ startups, onClose }: Props) {
             marginBottom: 12,
           }}
         >
-          <strong>📊 Connective graph — changes across startups</strong>
+          <strong>📊 {t("graph.title")}</strong>
           <span style={{ display: "flex", gap: 8 }}>
+            <button type="button" onClick={() => setView("graph")} style={{ fontWeight: view === "graph" ? 700 : 400 }}>
+              ⚡ {t("graph.activity")}
+            </button>
+            <button type="button" onClick={() => setView("list")} style={{ fontWeight: view === "list" ? 700 : 400 }}>
+              ☰ {t("graph.list")}
+            </button>
+            <button type="button" onClick={() => setView("demo")} style={{ fontWeight: view === "demo" ? 700 : 400 }}>
+              🎨 {t("graph.cards")}
+            </button>
             <button type="button" onClick={() => void invoke("capture_now").then(refresh)}>
-              Capture now
+              {t("graph.captureNow")}
             </button>
             <button type="button" onClick={() => void refresh()}>
-              Refresh
+              {t("graph.refresh")}
             </button>
             <button type="button" onClick={onClose}>
               ✕
@@ -91,8 +106,16 @@ export function GraphPanel({ startups, onClose }: Props) {
           </span>
         </div>
 
-        {loading ? (
+        <div style={{ fontSize: 11, color: "#64748b", marginBottom: 12 }}>
+          {view === "demo" ? t("graph.demoHint") : t("graph.realHint")}
+        </div>
+
+        {view === "demo" ? (
+          <VizDemo />
+        ) : loading ? (
           <p>Loading…</p>
+        ) : view === "graph" ? (
+          <ActivityView nodes={nodes} startups={startups} emptyHint={t("graph.empty")} />
         ) : nodes.length === 0 ? (
           <p style={{ opacity: 0.7, lineHeight: 1.6 }}>
             No nodes yet. Right-click a startup in the sidebar → <b>Grant folder…</b>, make a

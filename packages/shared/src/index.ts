@@ -3,3 +3,4 @@
 export const PACKAGE_NAME = "@ddalkkak/shared";
 export * from "./graph";
 export * from "./validate";
+export * from "./viz";

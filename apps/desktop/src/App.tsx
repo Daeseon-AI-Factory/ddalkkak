@@ -7,6 +7,7 @@ import { destroyTerminal } from "./terminalRegistry";
 import { invoke } from "@tauri-apps/api/core";
 import { grantPathFor } from "./pathGrant";
 import { GraphPanel } from "./GraphPanel";
+import { useT } from "./i18n";
 import {
   layoutKeyFor,
   loadActiveStartupId,
@@ -127,6 +128,7 @@ export default function App() {
     () => !localStorage.getItem("dalkkak.onboarded.v1"),
   );
   const [showGraph, setShowGraph] = useState(false);
+  const { lang, setLang } = useT();
 
   const dismissOnboarding = () => {
     try { localStorage.setItem("dalkkak.onboarded.v1", "1"); } catch {}
@@ -444,6 +446,9 @@ export default function App() {
             <button className="close" onClick={closeFocused} title="Close focused pane (⌘W)">✕ Close</button>
             <button onClick={resetLayout} title="Destroy all panes in this startup and start over">⟲ Reset</button>
             <button onClick={() => setShowGraph(true)} title="Connective graph — changes captured across startups">📊 Graph</button>
+            <button onClick={() => setLang(lang === "en" ? "ko" : "en")} title="Language — English / 한국어">
+              🌐 {lang.toUpperCase()}
+            </button>
           </div>
           <span className="hint">{focusedId ? <code>{focusedId.slice(-4)}</code> : "—"}</span>
         </div>

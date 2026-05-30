@@ -1,0 +1,90 @@
+//! UI string table. `en` is the source of truth; `ko` must cover the same keys
+//! (enforced by the Record<StringKey, string> type). Default language is English.
+//! Renderer/content strings (sample concept text) live with their component, keyed
+//! by Lang — this table is for chrome only.
+
+export type Lang = "en" | "ko";
+export const DEFAULT_LANG: Lang = "en";
+export const LANGS: readonly Lang[] = ["en", "ko"] as const;
+
+const en = {
+  "viz.without": "Without",
+  "viz.with": "With",
+  "viz.pros": "Pros",
+  "viz.cons": "Cons",
+  "viz.realWorld": "In practice",
+  "viz.analogy": "Like",
+  "graph.title": "Connective graph — changes across startups",
+  "graph.graph": "Graph",
+  "graph.list": "List",
+  "graph.cards": "Cards",
+  "graph.captureNow": "Capture now",
+  "graph.refresh": "Refresh",
+  "graph.activity": "Activity",
+  "graph.realHint": "Real changes captured from your connected repos.",
+  "graph.demoHint": "Sample renderers — how any signal will look. Data here is placeholder, not real yet.",
+  "activity.changes": "changes",
+  "activity.more": "more",
+  "graph.empty": "No nodes yet. Right-click a startup → Grant folder…, commit in that repo, and it shows up here within ~20s.",
+  "demo.note": "Sample render — live data will come from your own Claude Code.",
+  "demo.replay": "Replay animation",
+  "demo.pick": "Concept:",
+  "plan.planning": "Planning",
+  "plan.working": "Working",
+  "plan.done": "Done",
+  "plan.stuck": "Stuck",
+  "plan.files": "Files",
+  "recap.next": "Next",
+  "question.recommended": "Recommended",
+  "question.blocking": "Needs you",
+  "question.fyi": "FYI",
+  "demo.kindConcept": "Concept",
+  "demo.kindPlan": "Plan",
+  "demo.kindRecap": "Recap",
+  "demo.kindQuestion": "Question",
+  "demo.kindFlow": "Flow",
+  "demo.roadmapLabel": "Where this fits in the roadmap",
+} as const;
+
+export type StringKey = keyof typeof en;
+
+const ko: Record<StringKey, string> = {
+  "viz.without": "안 쓸 때",
+  "viz.with": "쓸 때",
+  "viz.pros": "장점",
+  "viz.cons": "단점",
+  "viz.realWorld": "실무에서는",
+  "viz.analogy": "비유",
+  "graph.title": "연결 그래프 — 스타트업 전체 변경",
+  "graph.graph": "그래프",
+  "graph.list": "목록",
+  "graph.cards": "카드",
+  "graph.captureNow": "지금 캡처",
+  "graph.refresh": "새로고침",
+  "graph.activity": "활동",
+  "graph.realHint": "연결된 레포에서 실제로 잡은 변경들.",
+  "graph.demoHint": "샘플 렌더러 — 어떤 신호든 이렇게 보일 거야. 여기 데이터는 임시(placeholder), 아직 실제 아님.",
+  "activity.changes": "변경",
+  "activity.more": "더",
+  "graph.empty": "아직 노드 없음. 스타트업 우클릭 → 폴더 권한 부여…, 그 레포에 커밋하면 ~20초 안에 여기 떠.",
+  "demo.note": "샘플 렌더 — 실제 데이터는 너의 Claude Code에서 와.",
+  "demo.replay": "애니메이션 다시",
+  "demo.pick": "개념:",
+  "plan.planning": "계획 중",
+  "plan.working": "작업 중",
+  "plan.done": "완료",
+  "plan.stuck": "막힘",
+  "plan.files": "파일",
+  "recap.next": "다음",
+  "question.recommended": "추천",
+  "question.blocking": "선택 필요",
+  "question.fyi": "참고",
+  "demo.kindConcept": "개념",
+  "demo.kindPlan": "계획",
+  "demo.kindRecap": "요약",
+  "demo.kindQuestion": "질문",
+  "demo.kindFlow": "흐름",
+  "demo.roadmapLabel": "전체 로드맵에서 이 작업의 위치",
+};
+
+export const STRINGS: Record<Lang, Record<StringKey, string>> = { en, ko };
