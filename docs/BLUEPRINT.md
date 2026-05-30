@@ -10,6 +10,8 @@
 
 > **"솔로 indie hacker가 본인 Claude Code/Codex로 여러 service를 동시에 만들고 운영하는 native desktop workspace OS."**
 
+**Refined (2026-05-30, Jason 확정):** 더 정확히 — **1인 기업가가 새로운 서비스를 `시작(start) → 만들기(build) → 관리(manage) → 실제 운영(operate)`하는 데 필요한 모든 것**을 한 플랫폼에서, 여러 스타트업을 동시에. 이 4-단계 라이프사이클이 제품의 조직 축이다. 데이터 모델은 §5.5 The Connective Layer 참조.
+
 핵심 원칙:
 - **We don't call AI.** Users bring their own Claude Code/Codex. We provide the workspace, multi-pane orchestration, and augmentation around their AI.
 - **Native desktop (Tauri).** Lightweight (~10MB binary, 30-80MB memory). Rust backend for PTY/tmux/file system. Browser sandboxing makes web-only impossible for this use case.
@@ -84,6 +86,40 @@ Market, pricing, competitors are secondary to this.
 | **6b. Advisor agent (cloud)** | Daily portfolio change summary | ✅ Uses user's own Claude key |
 
 **90%+ runs without our AI calls.** AI parts use user's own key via Anthropic TypeScript SDK.
+
+---
+
+## 5.5 The Connective Layer (the data spine) — confirmed 2026-05-30
+
+> The 6 layers above are NOT 6 separate features. They are bound into one operating
+> system by a **connective layer**: a living graph of every "connection point" across
+> the whole portfolio. Layers 1–2 are the substrate (work happens, data is born);
+> layer 3 feeds the graph; layers 4 / 6 / 6b read it. This is what turns "a terminal
+> multiplexer" into "a solo founder's startup OS."
+
+**Connection points (graph node types), per startup** — *Jason's words:* 이 사업이 뭐고 · 구조/아키텍처가 어떻고 · 이슈가 뭐고 · 시각적으로 어떤 흐름이고 · 결제 내역이 어떻고 — 전부.
+
+**How the graph stays fresh — two buckets:**
+- **External metrics → PULL real data.** Billing, uptime, etc. from real sources (Stripe / Java platform / monitors).
+- **Internal change → agents PUSH in the platform standard format.** Important user flows, architecture, and 각종 변경 are recorded by the agents *as they work, in the way most suitable for the platform.*
+
+**Hard constraint (non-negotiable, Jason):** logging/standards must NEVER distort the work. *"토큰은 더 써도 되지만 로깅·표준 때문에 작업을 왜곡하면 안 된다. 작업은 철저히 작업대로, 로깅·시각화는 포맷 따른 부가 작업일 뿐."* → This ends the era of recording every change by hand.
+
+**The standard (Jason):**
+- **Fixed / locked** — versioned (`schema_version` per entry; evolve across versions with migration so the graph stays joinable).
+- **Human-first** — defined in the direction a *person* finds most comfortable (legible markdown, not machine blobs).
+- **Refined by doing** — dogfooded and tuned in use.
+- **Platform-owned** — agents conform to it. Every node carries **provenance** (confirmed / inferred / hypothesis) so an inferred node can never masquerade as fact.
+
+**Lifecycle mapping — the 4 stages → the layers:**
+| Stage | What | Layers |
+|---|---|---|
+| **시작 / start** | scaffold a new service | sidebar / new-startup |
+| **만들기 / build** | the real work | 1–2 (terminal/session) + 3 (Claude Code) |
+| **관리 / manage** | the connective graph: issues · structure · flows | 3 (capture) + 4 (viz) |
+| **운영 / operate** | run it: uptime · metrics · billing · daily summary | 6 (dashboard) + 6b (advisor) |
+
+**Security model (consumer-appropriate, Jason):** per-project path designation → the platform integrates with *that path only*; additional paths require an explicit, confirmed grant; our automation only ever touches confirmed project paths. Never demands scary OS-wide permissions (no blanket Full Disk Access) — tuned to what an ordinary user is comfortable granting. (The raw shell the user types in is governed by standard OS prompts; what we constrain is *our automation's* reach.)
 
 ---
 
