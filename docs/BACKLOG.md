@@ -42,6 +42,12 @@ When you encounter an item that fits this file:
 
 ## UX
 
+### Korean/CJK IME broken in the FIRST pane (WKWebView), works after split
+- **Why deferred**: Genuinely hard WKWebView issue — it fires no DOM composition events for a textarea created before its input method is ready, so the launch pane never binds IME (Korean leaks as raw jamo). A workaround exists (split → freshly-bound pane). A first attempt (recreate terminal once ready) regressed split and was reverted.
+- **Trigger to revisit**: (a) Korean/CJK input becomes real daily friction in dogfood; OR (b) before any non-Jason release.
+- **Effort estimate**: ~half a day — recreate the launch pane's xterm once the webview is ready (keep the PTY/tmux session), ONCE-guarded, with the split/remount path tested.
+- **Source**: `docs/ISSUES.md` 2026-05-30 (Korean/CJK input post-mortem).
+
 ### Pane navigation (intra-pane, vim-style ⌘⌥arrows)
 - **Why deferred**: Phase 1.4+ scope; click-based focus works fine for now.
 - **Trigger to revisit**: Dogfood reveals "I need vim-style focus motions".
