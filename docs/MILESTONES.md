@@ -464,3 +464,16 @@ The tell was beautiful: capture could read the folder but the shell couldn't —
 - A multi-startup tool should never squat on your shared tmux.
 - Permissions tuned for a normal user — no scary Full Disk Access.
 
+## 2026-05-30 — Viz layer v1 (vocabulary draft + 5 renderers + Activity)
+
+### 🔧 Engineering
+- Built the rendering layer over the connective layer. A 4-agent workflow synthesised a 10-kind `viz_kind` vocabulary (viz-core's 24 kinds + three lensed proposals: minimalist / coverage / persona-first) → `packages/shared/src/viz.ts` (typed per-kind schemas + input→kind map) and `docs/VIZ_VOCABULARY.md`. Five Framer-Motion renderers (concept/plan/recap/question/mermaid), pure CSS/SVG — no canvas, WebKit-safe; animation used to clarify (sequential reveal, live "now" pulse), not decorate. `ActivityView` renders REAL captured commits through `recap` (`nodeToRecap.ts`) — strictly factual: real subject/files/line-counts, no invented next_step and no added/edited/deleted claim a `--stat` can't prove. Typed en/ko i18n with `useT()` (English default, persisted). Mermaid token-themed + wheel/drag zoom/pan. Commit `97a3654`; typecheck + build green. Vocabulary is a DRAFT, cards on sample data, Activity on real data — the augmentor→LLM-selector→per-session live path is next.
+
+### 💬 Raw
+- The honest arc: I kept over-explaining and Jason kept saying "just show me." Every "is the roadmap too much?" / "is this prettier?" got answered fastest by building it and letting him look — not by a paragraph. A couple of dead ends (raw text → icons → still text-heavy → finally real renderers) before it clicked, and he caught the real tension himself: "do we keep hand-coding standards forever?" — which is exactly why the vocabulary + escape hatches exist. The guardrail that never moved: density is fine, distortion is forbidden, so the real-commit cards show only what git actually proves. Also — he switched us to English mid-session to practice. That's its own kind of nerve.
+
+### 📣 Marketing
+- "DalkkakAI doesn't dump raw logs on you — it renders what your AI is doing as glanceable cards: the plan, the recap, the decision, the concept explained."
+- "Your real commits, auto-rendered as readable cards, grouped per startup."
+- "Switch English ⇄ Korean instantly — built for a non-engineer founder, not a terminal jockey."
+

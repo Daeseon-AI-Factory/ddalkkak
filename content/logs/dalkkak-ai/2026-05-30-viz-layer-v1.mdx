@@ -1,0 +1,63 @@
+---
+title: "Viz layer v1 — a locked-draft vocabulary + five animated renderers"
+date: "2026-05-30"
+project: "dalkkak-ai"
+kind: "tech-retro"
+visibility: "public"
+language: "en"
+summary: "Built the rendering layer that turns the connective layer's raw signals into 0.5-second-glance cards. A workflow-designed viz_kind vocabulary, five animated renderers, and an Activity view that renders real captured commits — all on a typed i18n base (English default)."
+tags: ["viz", "react", "framer-motion", "mermaid", "i18n", "tauri"]
+---
+
+## The problem
+
+The connective layer (v0) captures real git commits as graph nodes — but the read
+surface showed them as **raw text**: commit subjects with `fix(pty):` jargon, a
+`--stat` blob in the body. For the target user (a non-engineer solo founder) that's
+illegible. A first React Flow attempt grouped commits by code area, but it was still
+"a list with lines drawn on it" — the maintainer's reaction was literally *"it's still
+text-heavy"* and *"is the graph the same thing as the cards?"*. The signal was clear:
+we needed a **rendering vocabulary**, not more boxes.
+
+## What we built
+
+**A locked-draft viz_kind vocabulary** (`packages/shared/src/viz.ts`, `docs/VIZ_VOCABULARY.md`).
+Designed via a 4-agent workflow (viz-core's 24 kinds + three independent proposals —
+minimalist / coverage / persona-first — synthesised). 10 kinds:
+`plan · recap · question · diff · concept · metric · trend · mermaid · note · none`,
+each with a precise TS data schema and an input→kind map. `mermaid` + `concept` are the
+universal escape hatches so "anything unknown" still maps to something — that is how
+"visualise anything" works without hand-coding a renderer per data type.
+
+**Five renderers** (`apps/desktop/src/viz/`), pure CSS/SVG + Framer Motion, animation
+used to *clarify* (sequential reveal, the live "now" step pulses) not decorate:
+`ConceptCard`, `PlanCard`, `RecapCard`, `QuestionCard`, `MermaidCard` (token-themed,
+with wheel/drag zoom + pan via react-zoom-pan-pinch).
+
+**Activity view** (`ActivityView.tsx`) — the "real + pretty" merge: real captured
+commits rendered through the `recap` renderer, sectioned per startup. Strictly factual
+(`nodeToRecap.ts`): real subject + real files + real line counts; **no invented
+next_step, no added/edited/deleted claim** a `--stat` can't prove. Per-startup
+sectioning is the stepping stone to per-session (add `session_id` to the grouping).
+
+**i18n** (`apps/desktop/src/i18n/`) — a tiny typed en/ko table + `useT()`, English
+default, persisted. Korean was the only hardcoded copy; now switchable.
+
+## Honest status
+
+- The vocabulary is a **draft**, not maintainer-locked. It compiles and is versioned;
+  it gets refined through dogfooding.
+- The card renderers run on **sample data**. Only Activity is on real data today.
+- The live "Claude is working" path (augmentor → BYO-LLM selector → live card per
+  session) is **not wired yet** — that's the next build.
+- React Flow (`GraphView`/`nodeToDepgraph`) is parked, not deleted, for the future
+  portfolio network graph.
+
+## Lesson
+
+The maintainer kept asking to *see* it, not hear it. Every "is this too much?" was
+answered fastest by building the thing and letting them judge — and the guardrail that
+held the whole time was their own rule: **density is good, distortion never** — more
+real signal, not invented filler.
+
+**Commit**: `97a3654`

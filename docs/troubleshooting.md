@@ -48,3 +48,12 @@ Concrete only. Numbers, file paths, commit hashes.
 - **Commit**: `9828c08`
 - **Pattern**: a GUI app embedding tmux must use its OWN `-L <name>` server — the default shared server inherits another process's TCC context and entangles the user's sessions.
 - **Verify**: rebuild (`pnpm tauri dev`), new pane, `ls` a Documents-based repo (dev); bundled-app prompt at `tauri build`.
+
+## Connective-layer commits showed as raw text — illegible to a non-engineer founder
+
+- **Symptom**: the graph read surface rendered captured commits as raw `fix(pty): …` subjects + a `--stat` blob in the body. Maintainer reaction: *"still text-heavy"*, *"is the graph the same thing as the cards?"*. A React Flow area-grouping was still "a list with lines drawn on it".
+- **Cause**: no rendering vocabulary — raw node fields were shown directly. There was no notion of *which* visual a given signal should become.
+- **Fix**: viz layer v1 — a workflow-designed `viz_kind` vocabulary (`packages/shared/src/viz.ts`, 10 kinds + schemas; `docs/VIZ_VOCABULARY.md`), five Framer-Motion renderers (`apps/desktop/src/viz/{Concept,Plan,Recap,Question,Mermaid}Card.tsx`), and `ActivityView` rendering REAL commits through `recap` (`nodeToRecap.ts`, factual only — no invented next_step / change verbs). Mermaid token-themed + zoom/pan; typed i18n (`apps/desktop/src/i18n`, English default).
+- **Commit**: `97a3654`
+- **Pattern**: for a non-engineer surface, never show raw model/VCS fields — map every signal onto a small LOCKED vocabulary of glanceable renderers, and keep universal escape hatches (`mermaid` for any structure, `concept` for any unknown term) so novel inputs still render. Density is good; distortion is never. Build it and let the user *see* it — every "is this too much?" is answered fastest by a real render, not a paragraph.
+- **Verify**: `pnpm -C apps/desktop typecheck && pnpm -C apps/desktop build` (green); in-app 📊 Graph → Activity / Cards / Flow.
