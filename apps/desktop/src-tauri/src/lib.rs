@@ -1,5 +1,7 @@
 //! Tauri entry. Per-pane PTY sessions keyed by id.
 
+mod capture;
+mod paths;
 mod pty;
 
 use std::collections::HashMap;
@@ -81,6 +83,38 @@ fn log_augmentor_event(id: String, event: serde_json::Value) -> Result<(), Strin
     Ok(())
 }
 
+/// Grant DalkkakAI's automation access to a project folder for a startup.
+/// Canonicalizes + symlink-resolves; the returned canonical path is the only value
+/// automation ever trusts. Single chokepoint for project-path filesystem reach.
+#[tauri::command]
+fn grant_project_path(
+    startup_id: String,
+    requested_path: String,
+    allow: State<'_, paths::PathAllowlist>,
+) -> Result<String, String> {
+    info!(target: "grant", startup_id = %startup_id, "grant_project_path");
+    allow.grant(&startup_id, &requested_path)
+}
+
+/// Revoke a startup's project-folder grant (drops it from the allowlist).
+#[tauri::command]
+fn revoke_project_path(startup_id: String, allow: State<'_, paths::PathAllowlist>) {
+    info!(target: "grant", startup_id = %startup_id, "revoke_project_path");
+    allow.revoke(&startup_id);
+}
+
+/// Read all connective-layer graph nodes across all startups (renderer sorts).
+#[tauri::command]
+fn graph_list(store: State<'_, capture::GraphStore>) -> Vec<serde_json::Value> {
+    store.read_all()
+}
+
+/// Trigger a capture poll immediately (the "Capture now" button).
+#[tauri::command]
+async fn capture_now(app: tauri::AppHandle) {
+    capture::poll_once(&app).await;
+}
+
 #[tauri::command]
 fn pty_kill(id: String, state: State<'_, PtyState>) -> Result<(), String> {
     info!(target: "cmd", id = %id, "pty_kill");
@@ -116,8 +150,12 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             app.manage(PtyState(Mutex::new(HashMap::new())));
+            app.manage(paths::PathAllowlist::new());
+            app.manage(capture::GraphStore::new());
+            capture::spawn_worker(app.handle().clone());
             info!(target: "lifecycle", "tauri app setup complete");
             Ok(())
         })
@@ -126,7 +164,11 @@ pub fn run() {
             pty_write,
             pty_resize,
             pty_kill,
-            log_augmentor_event
+            log_augmentor_event,
+            grant_project_path,
+            revoke_project_path,
+            graph_list,
+            capture_now
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

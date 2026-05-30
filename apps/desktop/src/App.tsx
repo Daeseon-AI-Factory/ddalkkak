@@ -4,6 +4,9 @@ import "react-mosaic-component/react-mosaic-component.css";
 import { Sidebar } from "./Sidebar";
 import { TerminalPane } from "./TerminalPane";
 import { destroyTerminal } from "./terminalRegistry";
+import { invoke } from "@tauri-apps/api/core";
+import { grantPathFor } from "./pathGrant";
+import { GraphPanel } from "./GraphPanel";
 import {
   layoutKeyFor,
   loadActiveStartupId,
@@ -123,6 +126,7 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState<boolean>(
     () => !localStorage.getItem("dalkkak.onboarded.v1"),
   );
+  const [showGraph, setShowGraph] = useState(false);
 
   const dismissOnboarding = () => {
     try { localStorage.setItem("dalkkak.onboarded.v1", "1"); } catch {}
@@ -188,6 +192,19 @@ export default function App() {
     }
   }, [focusedId, layout]);
 
+  // Re-push stored path grants into the Rust allowlist (in-memory) on load /
+  // whenever startups change — re-canonicalizes and catches a moved/deleted folder.
+  useEffect(() => {
+    for (const s of startups) {
+      if (s.grant) {
+        void invoke("grant_project_path", {
+          startupId: s.id,
+          requestedPath: s.grant.requestedPath,
+        }).catch(() => {});
+      }
+    }
+  }, [startups]);
+
   // ─── Startup ops ─────────────────────────────────────────────────────────
   // Synchronously seeds the new startup's layout BEFORE switching to it.
   // Prevents the same race as the Load effect's fresh-leaf path.
@@ -242,6 +259,16 @@ export default function App() {
         setStartups(updated);
         saveStartups(updated);
       }
+    }
+    closeContextMenu();
+  };
+
+  const grantStartup = async (id: string) => {
+    const grant = await grantPathFor(id);
+    if (grant) {
+      const updated = startups.map((s) => (s.id === id ? { ...s, grant } : s));
+      setStartups(updated);
+      saveStartups(updated);
     }
     closeContextMenu();
   };
@@ -416,6 +443,7 @@ export default function App() {
             <button onClick={() => splitFocused("column")} title="Stack focused pane vertically (⌘⇧D)">⇅ Stack</button>
             <button className="close" onClick={closeFocused} title="Close focused pane (⌘W)">✕ Close</button>
             <button onClick={resetLayout} title="Destroy all panes in this startup and start over">⟲ Reset</button>
+            <button onClick={() => setShowGraph(true)} title="Connective graph — changes captured across startups">📊 Graph</button>
           </div>
           <span className="hint">{focusedId ? <code>{focusedId.slice(-4)}</code> : "—"}</span>
         </div>
@@ -491,11 +519,18 @@ export default function App() {
             <button onClick={() => changeStartupEmoji(contextMenu.id)}>
               <span>🎨</span> Change emoji
             </button>
+            <button onClick={() => void grantStartup(contextMenu.id)}>
+              <span>📁</span> Grant folder…
+            </button>
             <button className="danger" onClick={() => deleteStartup(contextMenu.id)}>
               <span>🗑</span> Delete
             </button>
           </div>
         </>
+      )}
+
+      {showGraph && (
+        <GraphPanel startups={startups} onClose={() => setShowGraph(false)} />
       )}
     </div>
   );

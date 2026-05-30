@@ -1,0 +1,56 @@
+---
+title: "Built the connective layer v0 in one session: designed, verified 4/4, shipped, 16 real nodes captured"
+date: "2026-05-30"
+project: "dalkkak-ai"
+kind: "update"
+visibility: "public"
+language: "en"
+summary: "From a confirmed blueprint to a working first slice of the connective layer in one session. A multi-agent design pass produced a 'commits-first' v0; an adversarial pass failed it 3/4, so we applied the prescribed fixes and re-verified 4/4; then built it layer by layer (schema, a single Rust path-allowlist chokepoint, off-thread git-commit capture, a folder-picker grant, a cross-startup graph panel). Dogfood test: granted two repos, 16 confirmed change nodes captured — including this session's own commits."
+tags: ["connective-layer", "tauri", "rust", "build", "dogfood"]
+---
+
+## From blueprint to a living slice
+
+The connective-layer vision had just been locked into BLUEPRINT §5.5: the six
+terminal/orchestration layers bound by a data spine that records every meaningful change as
+a standard-format node, without distorting the work. This session turned the top of that
+spine into running code.
+
+## Design → adversarial verify → fix → re-verify
+
+A multi-agent pass designed a v0; four adversarial verifiers then attacked it against the
+hard constraints and **failed it 3 of 4**. The proposed MVP captured on the terminal's
+render hot path, leaned on a path-grant primitive that did not exist, and mapped
+approval-prompt events to "issue" nodes they could never honestly fill. We applied the
+prescribed fixes — capture from git commits off-thread; build the path-grant primitive
+first; deterministic `node_id` + a single ingest validator — re-ran the same four checks,
+and got **4/4**. Catching three real defects *before* writing code is the exact opposite of
+the Korean-IME saga earlier the same session, where two guesses shipped and one regressed a
+working feature.
+
+## The build (commits-first)
+
+Layer by layer, each verified before the next:
+
+- **Schema + validator** (`packages/shared`) — the locked, versioned `GraphNode` and a single
+  `validateNode` that rejects empty/fabricated records.
+- **Path-grant primitive** — `Startup.grant` set via a folder picker, funneled through one
+  Rust `PathAllowlist` chokepoint that canonicalizes + symlink-resolves and hard-refuses any
+  ungranted path (never `$HOME`). No Full Disk Access; only `tauri-plugin-dialog` (open-directory).
+- **Capture** (`capture.rs`) — a 20s `tokio` timer task that shells out to `git -C <granted root>`,
+  post-hoc and off the render/PTY threads, turning each commit into a `confirmed` `change` node
+  (deterministic `node_id = <startup>/change/<hash>`, with a git-hash evidence receipt). The
+  terminal code was not touched.
+- **Read surface** (`GraphPanel.tsx`) — a cross-startup list with a provenance badge.
+
+`cargo check`, `pnpm typecheck`, and `pnpm build` were green at every layer.
+
+## Dogfood: it works
+
+Granted two real repos to two startups, opened the panel: **16 confirmed `change` nodes** —
+including this session's own commits (the Korean fix, the BLUEPRINT update, the BACKLOG
+entry), each with its real git hash and `--stat`. capture → store → read, proven on my own
+machine. The first living piece of the connective layer.
+
+Spec lives in `docs/CONNECTIVE_LAYER.md`. (The terminal's own `ls` permission — macOS TCC for
+the user's shell — is a separate, deliberately-decoupled concern, tackled next.)

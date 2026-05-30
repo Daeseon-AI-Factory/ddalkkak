@@ -7,11 +7,23 @@
 const STARTUPS_KEY = "dalkkak.startups.v1";
 const ACTIVE_STARTUP_KEY = "dalkkak.activeStartupId.v1";
 
+/** A user-confirmed project folder grant for a startup (connective-layer capture). */
+export interface PathGrant {
+  /** Path as the user picked it (display only). */
+  requestedPath: string;
+  /** Canonical, symlink-resolved absolute path — the ONLY value automation trusts. */
+  canonicalPath: string;
+  /** Epoch ms when the grant was confirmed. */
+  grantedAt: number;
+}
+
 export interface Startup {
   id: string;
   name: string;
   emoji: string;
   createdAt: number;
+  /** Per-startup confirmed project folder. Absent = ungranted = zero filesystem reach. */
+  grant?: PathGrant;
 }
 
 export function generateStartupId(): string {
