@@ -1,7 +1,22 @@
 {
   "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
   "files": {
-    "ignore": ["old_repo/**", "**/dist/**", "**/node_modules/**", "**/.turbo/**"]
+    "ignore": [
+      "old_repo/**",
+      "**/dist/**",
+      "**/node_modules/**",
+      "**/.turbo/**",
+      "**/target/**",
+      "apps/desktop/src-tauri/target/**",
+      "apps/desktop/src-tauri/gen/**",
+      "**/*.fingerprint",
+      "**/.fingerprint/**"
+    ]
   },
   "formatter": {
     "enabled": true,
