@@ -86,7 +86,7 @@ pub fn spawn(window: Window, id: String, cols: u16, rows: u16) -> Result<PtySess
 
     // bash wrapper — tmux failures become visible, then fallback shell so user can debug.
     let cmd_str = format!(
-        "{tmux} new-session -A -D -s {sess} 2>&1; \
+        "{tmux} -L dalkkak new-session -A -D -s {sess} 2>&1; \
          status=$?; \
          if [ $status -ne 0 ]; then \
            echo ''; \

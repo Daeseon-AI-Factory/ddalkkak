@@ -133,7 +133,7 @@ fn pty_kill(id: String, state: State<'_, PtyState>) -> Result<(), String> {
         .unwrap_or_else(|| "tmux".to_string());
     let tmux_session = format!("dalkkak-{}", id);
     match std::process::Command::new(&tmux_path)
-        .args(["kill-session", "-t", &tmux_session])
+        .args(["-L", "dalkkak", "kill-session", "-t", &tmux_session])
         .output()
     {
         Ok(_) => info!(target: "tmux", session = %tmux_session, "killed"),

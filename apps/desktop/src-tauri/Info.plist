@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Merged into the macOS bundle Info.plist by Tauri. These usage descriptions make
+  macOS show a normal "DalkkakAI wants to access files in your <folder>" PROMPT the
+  first time a pane's shell (or capture) touches a TCC-protected folder, instead of
+  silently denying with "Operation not permitted". This is the consumer-appropriate
+  alternative to demanding Full Disk Access. See docs/ISSUES.md (TCC).
+-->
+<plist version="1.0">
+<dict>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>DalkkakAI runs your terminal sessions in the project folders you choose, which may live in Documents.</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>DalkkakAI runs your terminal sessions in the project folders you choose, which may live on the Desktop.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>DalkkakAI runs your terminal sessions in the project folders you choose, which may live in Downloads.</string>
+</dict>
+</plist>
