@@ -1,0 +1,34 @@
+---
+title: "The terminal couldn't ls Documents — it was a shared tmux server, not a code bug; gave DalkkakAI its own"
+date: "2026-05-30"
+project: "dalkkak-ai"
+kind: "troubleshoot"
+visibility: "public"
+language: "en"
+summary: "A pane's shell hit 'Operation not permitted' in ~/Documents while the new connective-layer git capture read the same repo fine. pgrep showed why: panes attached to the default shared tmux server — a days-old daemon from another terminal, without Documents TCC — while capture ran git directly in the app's granted context. Fix: run DalkkakAI's panes on a dedicated 'tmux -L dalkkak' server (correct TCC context + isolated from the user's other sessions), plus Info.plist usage strings so the bundled app prompts instead of silently denying."
+tags: ["tauri", "tmux", "macos", "tcc", "permissions"]
+---
+
+## The tell: capture could read it, the shell couldn't
+
+Right after the connective layer started capturing git commits from a granted repo under
+`~/Documents`, the same pane's `ls` still returned `Operation not permitted`. Two processes,
+same app, same folder — one allowed, one denied. That asymmetry was the whole clue.
+
+`pgrep -fl tmux` showed it: a single shared tmux server had been running since days earlier
+(started by some other terminal), and DalkkakAI's panes — `tmux new-session -A` — were
+attaching to it, right alongside the user's unrelated `backend` / `aicore` / `adr` sessions.
+Commands in that server inherit *its* TCC context, which lacked Documents access. The capture,
+by contrast, runs `git` directly in the app's own process, which had the access. Different
+responsible processes, different permissions.
+
+## The fix: DalkkakAI gets its own tmux server
+
+`tmux -L dalkkak` — a dedicated socket. Now DalkkakAI's panes run in a server it starts itself
+(so they carry the app's TCC context) and they're cleanly isolated from whatever else the user
+is doing in tmux. For the shipped (bundled) app, `Info.plist` usage descriptions make macOS
+show a normal "wants to access your Documents" prompt instead of silently denying — the
+consumer-appropriate path, no Full Disk Access ask.
+
+A good reminder for the whole product: a GUI tool that embeds tmux should never share the
+default server.
