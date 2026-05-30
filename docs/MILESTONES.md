@@ -405,3 +405,62 @@ Numbers to memorize:
 - ~700 lines of our code, rest borrowed
 - Phase 1 (1.0 → 1.4) fully shipped
 
+---
+
+## 2026-05-30 — Korean/CJK input: tmux underscores fixed, WKWebView IME jamo leak diagnosed + deferred
+
+### 🔧 Engineering
+- Two verified root causes. (1) tmux ran non-UTF-8 — a Finder-launched GUI inherits no `LANG` and `pty.rs` only *forwarded* locale vars when already set → multibyte chars became `_`. Fix: DEFAULT `LANG`/`LC_CTYPE=en_US.UTF-8` (extends RULE #5b). (2) WKWebView fires NO DOM composition events for a textarea created before its IME is ready → xterm leaks raw jamo; pinned down by logging composition/keydown/inputType to `runtime.log`. First-pane case unresolved (workaround: split); deferred to BACKLOG.
+- Logged two AI missteps honestly in ISSUES.md: a `userAgent` guess shipped before reading xterm's `CompositionHelper` (which has no isSafari check), and a terminal-recreation fix that fired on every remount → regressed working split panes → reverted.
+- Commit: 7bd9ac1. Logs: ISSUES.md 6-section, troubleshooting.md, mdx.
+
+### 💬 Raw
+Classic dogfood-bites-back. "__" looked mysterious until the byte logic made it obvious (underscores are ASCII → tmux substitution). Then I got cocky and shipped two guesses for the jamo leak — one regressed a feature that already worked. Stopped, instrumented, and the data nailed it. Painful, but logging-to-runtime.log is the right reflex.
+
+### 📣 Marketing
+- "We debug our own terminal at the byte level — and write up every wrong turn."
+- Korean input in a Tauri terminal is a genuinely hard cross-stack problem; mapped end to end.
+- Honest failure analysis is half of good engineering.
+
+## 2026-05-30 — Connective-layer vision confirmed + written into BLUEPRINT §5.5
+
+### 🔧 Engineering
+- Locked the thesis: the 6 core layers are bound by a shared DATA SPINE — a living portfolio graph of each startup's connection points (identity/structure/issues/flows/billing). External metrics PULL; internal change is PUSHed by agents in a platform-standard format, as a byproduct of work, under a hard constraint that recording never distorts the work. Standard locked+versioned, human-first, platform-owned, provenance per node. Mission refined to the start→build→manage→operate lifecycle. Written to BLUEPRINT.md §1 + new §5.5. Commit: 66452e9.
+
+### 💬 Raw
+The moment the product stopped being "a fancy terminal." Jason pushed back hard when I mis-framed it as a portfolio piece — it's a real venture, an OS for a solo founder running several startups. "Agents are sensors, you never hand-log again" is the soul of it.
+
+### 📣 Marketing
+- "DalkkakAI: the OS a solo founder uses to start, build, manage, and operate several startups at once."
+- Every change across your whole portfolio, recorded automatically — never by hand.
+- The terminal is the substrate; the product is the connective tissue.
+
+## 2026-05-30 — Connective layer v0: designed (4/4 adversarially verified), built, working (16 real nodes)
+
+### 🔧 Engineering
+- Multi-agent design → 4 adversarial verifiers FAILED it 3/4 (capture on the render hot path; a path-grant primitive that didn't exist; a prompt→issue category error). Applied the prescribed fixes (capture git commits off-thread; build the path-grant primitive first; deterministic node_id + single ingest validator) → re-verified 4/4.
+- Built layer by layer, each cargo-check/typecheck/build green: shared schema+validator; a single Rust `PathAllowlist` chokepoint (canonicalize+symlink-resolve, never `$HOME`, no Full Disk Access); a 20s tokio timer that shells `git -C <granted root>` off the render/PTY threads → confirmed `change` nodes; a folder-picker grant + a cross-startup `GraphPanel`. Terminal code untouched.
+- Dogfood: granted 2 repos → 16 confirmed change nodes (incl. this session's own commits). Commit: 37c2fdc. Spec: docs/CONNECTIVE_LAYER.md.
+
+### 💬 Raw
+The opposite of the Korean saga — the adversarial pass caught three real defects BEFORE a line was written. Then it just built, layer by layer, every check green. Granting a repo and watching our own commits appear as nodes was the best moment of the day. The spine is alive.
+
+### 📣 Marketing
+- "From blueprint to a working slice of the connective layer in one session."
+- Designed by a panel, attacked by adversaries, fixed, re-verified 4/4, then shipped — capturing 16 real changes on first run.
+- The first living piece of "your whole portfolio, recorded automatically."
+
+## 2026-05-30 — Terminal TCC fixed: DalkkakAI gets its own tmux server (-L dalkkak)
+
+### 🔧 Engineering
+- Symptom: a pane's `ls ~/Documents` returned Operation not permitted while the new git capture (same app) read the same repo fine. Cause (pgrep tmux): panes attached to the DEFAULT shared tmux server — a days-old daemon from another terminal, lacking Documents TCC — while capture ran git directly in the app's granted context.
+- Fix: spawn/kill on a dedicated `tmux -L dalkkak` server → DalkkakAI shells run in a fresh app-started server (correct TCC) and are isolated from the user's other tmux sessions. Info.plist usage strings for the bundled-app prompt. **Verified working** (ls now succeeds). Commits: 9828c08, e9760c9.
+
+### 💬 Raw
+The tell was beautiful: capture could read the folder but the shell couldn't — same app, same path. One pgrep and it was obvious — we'd been squatting on whatever tmux server happened to be running, tangled with the user's other sessions. Our own server fixed the permission AND the entanglement. Should've been -L from day one.
+
+### 📣 Marketing
+- "DalkkakAI runs your sessions in its own isolated tmux server — no collisions with your other work."
+- A multi-startup tool should never squat on your shared tmux.
+- Permissions tuned for a normal user — no scary Full Disk Access.
+
