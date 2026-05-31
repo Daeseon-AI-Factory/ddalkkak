@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { ensureSpawned, getOrCreateTerminal } from "./terminalRegistry";
+import { useSummary } from "./summaryModal";
 import { SessionStatusBar } from "./viz/SessionStatusBar";
 import "@xterm/xterm/css/xterm.css";
 
@@ -12,6 +13,8 @@ interface Props {
 
 export function TerminalPane({ id, focused, onFocus }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const summary = useSummary();
+  const highlighted = summary?.paneId === id; // red outline while THIS pane's summary is open
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -52,7 +55,16 @@ export function TerminalPane({ id, focused, onFocus }: Props) {
   }, [focused, id]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        minHeight: 0,
+        boxShadow: highlighted ? "inset 0 0 0 3px #f85149" : undefined,
+        borderRadius: highlighted ? 4 : undefined,
+      }}
+    >
       <SessionStatusBar id={id} />
       <div
         ref={containerRef}

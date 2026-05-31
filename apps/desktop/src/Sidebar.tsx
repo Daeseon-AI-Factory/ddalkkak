@@ -32,7 +32,7 @@ export function Sidebar({ startups, activeId, onSelect, onCreate, onContextMenu 
   return (
     <div className="sidebar">
       <div className="sidebar-list">
-        {startups.map((s) => (
+        {startups.map((s, i) => (
           <div key={s.id} style={{ position: "relative", display: "flex", alignItems: "stretch" }}>
             <button
               className={`startup-item ${s.id === activeId ? "active" : ""}`}
@@ -42,10 +42,11 @@ export function Sidebar({ startups, activeId, onSelect, onCreate, onContextMenu 
                 onContextMenu(s.id, e.clientX, e.clientY);
               }}
               title={s.name}
-              style={{ flex: 1, paddingRight: 26 }}
+              style={{ flex: 1 }}
             >
               <span className="startup-emoji">{s.emoji}</span>
               <span className="startup-name">{s.name}</span>
+              {i < 9 && <span className="startup-key">⌃{i + 1}</span>}
             </button>
             <button
               type="button"

@@ -59,6 +59,89 @@ fn strip_fence(s: &str) -> String {
     t.trim().to_string()
 }
 
+/// Sum token usage across all assistant messages in a session transcript. Numbers are
+/// REAL (recorded per message by Claude Code); there's no cost field, and on a subscription
+/// there's no per-token bill, so we report tokens, not dollars (no fabricated $).
+pub fn session_usage(transcript_path: String) -> Result<serde_json::Value, String> {
+    if transcript_path.is_empty() || !Path::new(&transcript_path).exists() {
+        return Err("no transcript for this session yet".into());
+    }
+    let content = std::fs::read_to_string(&transcript_path).map_err(|e| e.to_string())?;
+    let (mut input, mut output, mut cache_read, mut cache_creation, mut messages) =
+        (0u64, 0u64, 0u64, 0u64, 0u64);
+    for line in content.lines() {
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        if v.get("type").and_then(|t| t.as_str()) != Some("assistant") {
+            continue;
+        }
+        let Some(u) = v.get("message").and_then(|m| m.get("usage")) else {
+            continue;
+        };
+        let g = |k: &str| u.get(k).and_then(|x| x.as_u64()).unwrap_or(0);
+        input += g("input_tokens");
+        output += g("output_tokens");
+        cache_read += g("cache_read_input_tokens");
+        cache_creation += g("cache_creation_input_tokens");
+        messages += 1;
+    }
+    Ok(serde_json::json!({
+        "input": input,
+        "output": output,
+        "cache_read": cache_read,
+        "cache_creation": cache_creation,
+        "messages": messages,
+    }))
+}
+
+/// Extract the JSON inside the LAST `<dk-summary>…</dk-summary>` in a text block.
+fn extract_block(text: &str) -> Option<String> {
+    let start = text.rfind("<dk-summary>")? + "<dk-summary>".len();
+    let after = &text[start..];
+    let end = after.find("</dk-summary>")?;
+    Some(after[..end].trim().to_string())
+}
+
+/// Read the latest in-line self-summary from the session TRANSCRIPT (ADR-003/004): the
+/// model emits a clean `<dk-summary>{viz}</dk-summary>` into each reply, which lands in the
+/// transcript JSONL un-mangled (unlike the TUI byte stream). We parse the transcript from
+/// the end, find the last assistant text block carrying a block, and return its `{kind,data}`.
+/// Reliable + instant (a file read, no model call).
+pub fn read_inline_summary(transcript_path: String) -> Result<serde_json::Value, String> {
+    if transcript_path.is_empty() || !Path::new(&transcript_path).exists() {
+        return Err("no transcript for this session yet — give Claude a turn first".into());
+    }
+    let content = std::fs::read_to_string(&transcript_path).map_err(|e| e.to_string())?;
+    for line in content.lines().rev() {
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        if v.get("type").and_then(|t| t.as_str()) != Some("assistant") {
+            continue;
+        }
+        let Some(blocks) = v
+            .get("message")
+            .and_then(|m| m.get("content"))
+            .and_then(|c| c.as_array())
+        else {
+            continue;
+        };
+        for blk in blocks.iter().rev() {
+            if blk.get("type").and_then(|t| t.as_str()) != Some("text") {
+                continue;
+            }
+            if let Some(text) = blk.get("text").and_then(|t| t.as_str()) {
+                if let Some(json) = extract_block(text) {
+                    return serde_json::from_str(&json)
+                        .map_err(|e| format!("summary block isn't valid JSON: {e}"));
+                }
+            }
+        }
+    }
+    Err("no summary yet — give this session a turn (it appears after Claude replies)".into())
+}
+
 /// Run the user's `claude -p` on the transcript tail → a `{kind, data}` viz payload.
 pub async fn summarize(transcript_path: String) -> Result<serde_json::Value, String> {
     if transcript_path.is_empty() || !Path::new(&transcript_path).exists() {

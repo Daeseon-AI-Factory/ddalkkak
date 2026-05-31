@@ -118,10 +118,22 @@ async fn capture_now(app: tauri::AppHandle) {
     capture::poll_once(&app).await;
 }
 
-/// Layer 2 — on-demand session summary via the user's `claude -p` (ADR-002).
+/// Layer 2 — on-demand session summary via the user's `claude -p` (ADR-002, legacy/slow).
 #[tauri::command]
 async fn summarize_session(transcript_path: String) -> Result<serde_json::Value, String> {
     summarize::summarize(transcript_path).await
+}
+
+/// Layer 2 (ADR-003/004) — read the latest in-line `<dk-summary>` card from the transcript.
+#[tauri::command]
+fn read_inline_summary(transcript_path: String) -> Result<serde_json::Value, String> {
+    summarize::read_inline_summary(transcript_path)
+}
+
+/// Per-session token usage, summed from the transcript (real numbers; no $ — subscription).
+#[tauri::command]
+fn session_usage(transcript_path: String) -> Result<serde_json::Value, String> {
+    summarize::session_usage(transcript_path)
 }
 
 #[tauri::command]
@@ -183,7 +195,9 @@ pub fn run() {
             revoke_project_path,
             graph_list,
             capture_now,
-            summarize_session
+            summarize_session,
+            read_inline_summary,
+            session_usage
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

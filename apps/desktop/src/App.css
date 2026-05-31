@@ -18,7 +18,7 @@ html, body, #root {
 
 /* ─── Sidebar ─────────────────────────────────────────────────────────────── */
 .sidebar {
-  width: 64px;
+  width: 200px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -39,17 +39,19 @@ html, body, #root {
 
 .startup-item {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
   background: transparent;
   border: 2px solid transparent;
   border-radius: 10px;
-  padding: 6px 4px;
+  padding: 9px 36px 9px 11px;
   cursor: pointer;
   color: #94a3b8;
   font-family: inherit;
-  font-size: 9px;
+  font-size: 13px;
   line-height: 1.2;
   transition: background 80ms, border-color 80ms, color 80ms;
 }
@@ -66,19 +68,30 @@ html, body, #root {
 }
 
 .startup-emoji {
-  font-size: 22px;
+  font-size: 20px;
   line-height: 1;
-  margin-bottom: 4px;
+  flex-shrink: 0;
 }
 
 .startup-name {
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 50px;
   font-weight: 500;
+}
+
+.startup-key {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: #475569;
+  font-variant-numeric: tabular-nums;
+}
+
+.startup-item.active .startup-key {
+  color: #64748b;
 }
 
 .sidebar-footer {

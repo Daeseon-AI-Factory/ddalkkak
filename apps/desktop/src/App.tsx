@@ -10,6 +10,7 @@ import { GraphPanel } from "./GraphPanel";
 import { useT } from "./i18n";
 import { listen } from "@tauri-apps/api/event";
 import { applyHookEvent } from "./sessionStatus";
+import { SummaryModal } from "./viz/SummaryModal";
 import {
   layoutKeyFor,
   loadActiveStartupId,
@@ -369,9 +370,9 @@ export default function App() {
   // ─── Keyboard shortcuts ──────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey)) return;
+      if (!e.metaKey && !e.ctrlKey) return; // only modified keys
 
-      // Pane ops
+      // Pane ops: Cmd/Ctrl + D (split), Cmd/Ctrl + W (close)
       if (e.key === "d" || e.key === "D") {
         e.preventDefault();
         if (e.shiftKey) splitFocused("column");
@@ -384,37 +385,52 @@ export default function App() {
         return;
       }
 
-      // Startup switch by index: ⌘1..⌘9
-      if (/^[1-9]$/.test(e.key) && !e.shiftKey) {
-        const idx = parseInt(e.key, 10) - 1;
+      const isDigit = /^[1-9]$/.test(e.key);
+      const paneIds = layout ? collectIds(layout) : [];
+
+      // ── Arc-style: CTRL = startups, CMD = panes ──
+      // Ctrl + 1..9 → switch STARTUP N
+      if (e.ctrlKey && !e.metaKey && isDigit && !e.shiftKey) {
+        const idx = Number.parseInt(e.key, 10) - 1;
         if (idx < startups.length) {
           e.preventDefault();
           selectStartup(startups[idx].id);
         }
         return;
       }
-
-      // Previous / next startup: ⌘⇧[ and ⌘⇧]
-      // (macOS keyboard reports e.key as "{" / "}" when Shift is held)
-      if (e.shiftKey && (e.key === "{" || e.key === "[")) {
-        e.preventDefault();
-        if (!activeStartupId || startups.length < 2) return;
-        const i = startups.findIndex((s) => s.id === activeStartupId);
-        const prev = startups[(i - 1 + startups.length) % startups.length];
-        selectStartup(prev.id);
+      // Cmd + 1..9 → focus PANE N
+      if (e.metaKey && !e.ctrlKey && isDigit && !e.shiftKey) {
+        const idx = Number.parseInt(e.key, 10) - 1;
+        if (idx < paneIds.length) {
+          e.preventDefault();
+          setFocusedId(paneIds[idx]);
+        }
         return;
       }
-      if (e.shiftKey && (e.key === "}" || e.key === "]")) {
+
+      // Ctrl + Tab / Ctrl + Shift + Tab → next / prev STARTUP
+      if (e.ctrlKey && e.key === "Tab") {
         e.preventDefault();
         if (!activeStartupId || startups.length < 2) return;
         const i = startups.findIndex((s) => s.id === activeStartupId);
-        const next = startups[(i + 1) % startups.length];
-        selectStartup(next.id);
+        const j = e.shiftKey
+          ? (i - 1 + startups.length) % startups.length
+          : (i + 1) % startups.length;
+        selectStartup(startups[j].id);
+        return;
+      }
+      // Cmd + [ / Cmd + ] → prev / next PANE (Cmd never reaches the terminal)
+      if (e.metaKey && !e.ctrlKey && (e.key === "[" || e.key === "]")) {
+        e.preventDefault();
+        if (paneIds.length < 2) return;
+        const i = focusedId ? paneIds.indexOf(focusedId) : 0;
+        const j = e.key === "[" ? (i - 1 + paneIds.length) % paneIds.length : (i + 1) % paneIds.length;
+        setFocusedId(paneIds[j]);
         return;
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true); // capture: beat xterm to Ctrl/Cmd combos
+    return () => window.removeEventListener("keydown", onKey, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusedId, layout, startups, activeStartupId]);
 
@@ -547,6 +563,8 @@ export default function App() {
       {showGraph && (
         <GraphPanel startups={startups} onClose={() => setShowGraph(false)} />
       )}
+
+      <SummaryModal />
     </div>
   );
 }
