@@ -224,3 +224,40 @@ Mosaic tile's containing block) with the source pane outlined red. The popup als
 input/output/cache numbers, **no $** (a Max subscription has no per-token bill and the
 transcript has no `costUSD` field, so a dollar figure would be fabricated). See
 `docs/troubleshooting.md`.
+
+---
+
+## ADR-005 — Usage metrics are a read-time "pulse", not a stored telemetry pipeline
+
+**Status:** Proposed (2026-05-31) — pending Jason's answers to the open questions in the spec.
+**Full spec:** [`docs/USAGE_PULSE.md`](USAGE_PULSE.md).
+
+**Context.** Jason asked for per-startup / daily usage metrics AND logging of the internal
+agent-loop steps ("to use AI better"), explicitly "not too detailed", on a subscription with no
+$ bill. Designed via a 3-draft → adversarial-critique → synthesis workflow (7 agents) that read
+the actual code and verified each reuse claim at line level.
+
+**Decision.** Build a **read-time pulse**, not a metrics product:
+- A single pure Rust fn `usage_pulse()` (sibling of `summarize.rs::session_usage`) rolls metrics
+  **on view-open** from data already on disk — native transcripts + the already-tailed
+  `session-events.jsonl` + `GraphStore` — and **persists nothing in Phase 1**.
+- Honest units only: **output tokens + active days + counts**; never total/cache tokens, never `$`.
+  Enforced by a **single output-tokens accessor** so the 305M:1.6M cache_read trap can't be wired
+  in by accident.
+- Logged signals are **counts & enums only** (tool_name, is_error boolean, step/turn/block counts) —
+  never tool inputs, paths, commands, content, or error text (CLAUDE.md security).
+- Startup attribution keys on the **transcript's own recorded `cwd`** (longest-prefix-wins over
+  `PathAllowlist`, ambiguity → `unassigned`) — works on historical sessions day one, never
+  confidently-wrong.
+- Six glanceable views (effort split / momentum / fan-out / explore-vs-produce / friction /
+  shipped-vs-thrash), each tied to a real founder decision.
+
+**Why over the alternatives.** A persisted-events pipeline (Tier 1/2) was deferred behind explicit,
+falsifiable triggers (P1 only if on-read re-parse measurably >~300ms or a transcript rotates away;
+P2 only when a reader consumes it). Tool-mix/retry/block were re-sourced from the **transcript**,
+not hooks, because the product's PreToolUse/PostToolUse hooks fire sparsely (measured ~1 in 37
+events) and the PostToolUse hook drops `tool_response` — so a hook-based count would be near-empty.
+
+**Open / not yet decided.** The six open questions in the spec (active-day definition, `unassigned`
+visibility, steps/turn framing, tool_error exclusion, timezone, hook line shape). No code until P0
+is approved + those are answered.

@@ -1,0 +1,66 @@
+---
+title: "Designing the usage 'pulse' with a 7-agent workflow that read its own codebase"
+date: "2026-05-31"
+project: "dalkkak-ai"
+kind: "tech-retro"
+visibility: "public"
+language: "en"
+summary: "Spec for per-startup / daily AI-usage metrics, designed by a 3-draft → adversarial-critique → synthesis workflow. The verdict: a read-time 'pulse' that persists nothing, sourced from transcripts (not the sparse hook stream), with honest units and counts-only logging."
+tags: ["multi-agent", "workflow", "metrics", "architecture", "honest-metrics"]
+---
+
+## The ask
+
+Jason wanted per-startup and daily usage metrics — and, after seeing that one question fans out
+to ~47 internal agent steps, he wanted those steps logged too, "to use AI better," but
+"not too detailed." On a Max subscription with no per-token bill.
+
+Two turns earlier I'd argued *against* building usage history at the **session** level (no $
+lever, transcripts already are the record). But at the **portfolio** level — "which of my
+startups is my AI effort actually going to?" — the calculus flips: that's a real decision a
+solo multi-startup founder makes, and it's the product's whole cross-startup thesis. So: worth
+designing, carefully.
+
+## The method
+
+Instead of writing the spec in one pass, I ran a design workflow: **3 independent drafts** from
+distinct angles (insight-first / cheap-derive-first / data-model-first) → **adversarial critique**
+of each → **synthesis**. Seven agents. The thing I didn't expect: the agents **read the actual
+code** and verified every reuse claim at line level — `is_user_prompt()`, the token-summing loop,
+`GraphStore`'s append-distinct dedup, `PathAllowlist.snapshot`, the `Notification→blocked`
+mapping. The critique caught two **verified-false** premises in the drafts (see below) that a
+single-pass spec would have shipped.
+
+## The verdict — "pulse, not telemetry"
+
+One pure Rust fn `usage_pulse()` (sibling of `session_usage`) that rolls metrics **on view-open**
+from data already on disk — native transcripts + the already-tailed `session-events.jsonl` +
+`GraphStore` — and **persists nothing in Phase 1**. Locked principles, made structural:
+
+- **No dollars, ever.** Output tokens as effort; never total/cache tokens (measured 305M cache
+  vs 1.6M output — cache is re-reads, noise). Enforced by a *single output-tokens accessor* so the
+  cache-dominance trap can't be wired in by accident.
+- **Counts & enums only** — `tool_name`, `is_error` boolean, step/turn/block counts. Never tool
+  inputs, paths, commands, content, error text.
+- **Startup attribution via the transcript's own `cwd`** (longest-prefix-wins, ambiguity →
+  `unassigned`). This fixes cold-start (works on historical sessions; the hook line has no `cwd`)
+  AND silent misattribution (bare prefix-matching confidently tags the wrong startup on nested roots).
+
+## What the critique killed
+
+- **Hook-keyed fields** — the product hook line is `{pane,event,tool,tpath,ts}`; there is **no
+  `session_id`**. Half the drafts' field-lists were re-keyed onto transcript + `tpath`.
+- **Hook-sourced tool-mix / retry** — PreToolUse/PostToolUse fire **sparsely** (~1 in 37 events)
+  and PostToolUse drops `tool_response`, so a hook-based count would be near-empty. Re-sourced from
+  the **transcript**, which we already parse — and which needs no edit to the user's hook config.
+- **ms wait-durations as a headline** — no "unblocked" event + wall-clock → unreliable. The
+  friction view leads with the reliable `Notification` *count* instead.
+- **Persist "just in case"** — deferred behind falsifiable triggers: P1 (a thin, disposable daily
+  index) only if on-read re-parse measurably exceeds ~300ms or a transcript rotates away; P2
+  (a durable graph node) only when a reader actually consumes it.
+
+Full spec in `docs/USAGE_PULSE.md`; decision in `docs/DECISIONS.md` ADR-005 (Proposed — six open
+questions still need Jason before any code).
+
+The meta-lesson: for a design with real correctness traps (which signals even *exist* in the data),
+a critique pass that reads the ground truth beats one confident draft.
