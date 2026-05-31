@@ -60,3 +60,11 @@ Build: `DALKKAK_PANE_ID` injection in `pty.rs`; a hook-config installer (with ba
 merge, never overwrite); a Rust receiver (watch the event file) → Tauri event → renderer
 wiring into `sessionStatus.ts`. When shipping to other users, the app installs the hook
 on first run, with consent.
+
+### Verified (2026-05-31)
+Working end-to-end. Evidence: `session-events.jsonl` captured **37 hook events across 3
+correctly-tagged panes**; the strip flips `UserPromptSubmit`→thinking, `Stop`→done,
+`Notification`→needs-you reliably — the stale-"working" bug is gone (maintainer confirmed
+"done으로 바뀜"). **Known gap:** `PreToolUse`/`PostToolUse` fire sparsely (1 PreToolUse in
+the sample), so the "working · &lt;tool&gt;" detail is thin — the core states are solid;
+tool-name granularity is a future refinement (likely matcher/auto-mode related).
