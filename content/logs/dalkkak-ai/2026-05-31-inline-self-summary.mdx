@@ -1,0 +1,67 @@
+---
+title: "Let the doer summarize itself — and edit a dotfile without ever corrupting it"
+date: "2026-05-31"
+project: "dalkkak-ai"
+kind: "tech-retro"
+visibility: "public"
+language: "en"
+summary: "The post-hoc summary (spawn a fresh claude -p to re-read the transcript) was 20–50s. The founder reframed it: the session's own Claude already did the work — have IT emit the summary as a byproduct. The tricky part was the plumbing: getting the pane's claude to self-summarize meant editing ~/.zshrc, done append-only so it can never break the user's terminal."
+tags: ["architecture", "claude-code", "shell", "safety", "rust"]
+---
+
+## The reframe
+
+Layer 2 (a "✨ Summarize" button) first re-read each session's transcript with a *separate*
+`claude -p`. It worked but took 20–50s — a second model re-doing the work and, at the
+user's high effort setting, thinking for thousands of tokens. The founder's reframe killed
+the whole problem in one sentence: **the session's own Claude already did the work and holds
+the context — have it emit the summary as a byproduct of its reply.** No re-read, no second
+call. Free, instant, accurate.
+
+## The mechanism
+
+Give the pane's Claude a tiny directive: at the end of each reply, append
+`<dk-summary>{viz json}</dk-summary>`. The app then **pulls that block out of the terminal
+stream** (a small cross-chunk-safe stripper), so the user never sees it, and renders it as
+that session's card. Validated end-to-end: prompted with the directive, Claude reliably
+appended a valid, accurate block.
+
+## The gotcha: a wrapper on PATH lost to the user's rc
+
+The first injection plan — drop a DalkkakAI `claude` wrapper on the pane's PATH — silently
+**didn't fire**. The user's `~/.zshrc` does `export PATH="$HOME/.local/bin:$PATH"`, which
+prepends the dir with the *real* claude ahead of ours. PATH order: real binary wins.
+
+Fix: a shell **function**, not a PATH shadow. `claude() { command claude
+--append-system-prompt … }`. Functions resolve before PATH, so the same rc that re-orders
+PATH can't beat a function defined in it. (`command claude` calls the real binary — no
+recursion.)
+
+## The careful part: editing a dotfile that must never break
+
+Installing that function means writing to `~/.zshrc` — the user's terminal config. Two
+guardrails fired, both correctly:
+
+1. The auto-mode safety classifier **blocked** my direct shell edit as an unrequested
+   profile change. Right call. The founder then explicitly approved — *"do it for sure…
+   it must never get tangled"* — so the **app** performs it (the proper, consented path).
+2. So the install is **bulletproof by construction**: **append-only** — it never reads the
+   file to rewrite it, never parses it, only appends a marked block, so existing content
+   *cannot* be corrupted, only added to. Plus a one-time backup to `~/.zshrc.dalkkak-bak`,
+   an idempotent marker (no double-add), and a `DALKKAK_PANE_ID` guard so it acts only
+   inside DalkkakAI panes.
+
+Verified: after install the existing `~/.zshrc` is **byte-identical** (append-only proven),
+the backup exists, and `claude` is a function inside DalkkakAI panes but the untouched real
+binary everywhere else.
+
+## Lessons
+
+- To intercept a command in an interactive shell, **override it with a function** (beats
+  PATH); a PATH-shadow loses to the user's own rc.
+- When you must touch a user's dotfile: **append-only + backup + idempotent marker + scope
+  guard**. Never parse-and-rewrite — that's how you corrupt someone's shell.
+- The best fix for "the summary is slow" wasn't a faster summarizer; it was **not
+  summarizing twice** — let the doer do it. (The founder's call, not mine.)
+
+**Commit**: `fad4738` · decision: `docs/DECISIONS.md` ADR-003

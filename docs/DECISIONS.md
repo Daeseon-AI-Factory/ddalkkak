@@ -157,3 +157,22 @@ Kills the 22–54s problem entirely.
 - The ✨ on-demand `claude -p` (ADR-002) drops to a fallback / is removed.
 - Tradeoffs: adds a few tokens to each pane reply (free, subscription); the model must
   remember the block (high but not 100% — a missed turn just yields no card, graceful).
+
+### Built (2026-05-31), commit `fad4738`
+- **Injection pivot:** the first plan (prepend a DalkkakAI `bin` dir holding a `claude`
+  wrapper to the pane PATH) was **bypassed** — the user's `~/.zshrc` does
+  `export PATH="$HOME/.local/bin:$PATH"`, which prepends the dir holding the REAL claude
+  *ahead* of our wrapper. So we switched to a guarded **shell FUNCTION** (`claude() {
+  command claude --append-system-prompt … }`) — functions resolve before PATH, so it wins
+  regardless of rc ordering. (See `docs/troubleshooting.md`.)
+- **The app installs it safely** (`inline::ensure_shell_function`): **append-only** (never
+  reads-for-rewrite or parses the user's file → existing content cannot be corrupted, only
+  added to), **backed up** once to `~/.zshrc.dalkkak-bak`, **idempotent** (marker), and
+  **guarded by `DALKKAK_PANE_ID`** so it acts only in DalkkakAI panes.
+- **Consent + safety:** a direct shell edit of `~/.zshrc` was (correctly) blocked by the
+  auto-mode classifier as an unrequested shell-profile change. The maintainer then
+  explicitly approved ("확실히 해줘.. 절대 꼬이면 안되"), so the **app** performs it — the
+  proper, consented mechanism, not an ad-hoc edit.
+- **Verified:** existing `.zshrc` byte-identical after install (append-only confirmed);
+  backup present; `claude` is a function in DalkkakAI panes and the real binary in normal
+  terminals; no crash. Live card render pending the maintainer's in-app confirm.

@@ -81,3 +81,11 @@ Concrete only. Numbers, file paths, commit hashes.
 - **Fix**: NOT resolved. `--strict-mcp-config` removed boot cost but the API time is the blocker. The decision (ADR-002, on-demand `claude -p`) needs revisiting — likely a direct haiku API call (fast, needs a valid key) or async/background summarization with progress. Tracked in `docs/DECISIONS.md` ADR-002.
 - **Commit**: `753881b`
 - **Pattern**: before committing a CLI-spawn (`claude -p`) for an INTERACTIVE feature, measure end-to-end latency on REAL input — a one-shot CLI that boots an agent + makes a network call can be 20–50s (fine for batch, not for a button). Always split boot vs API time (`duration_ms` vs `duration_api_ms`) so you attack the right half.
+
+## A PATH-prepended `claude` wrapper is bypassed by the user's rc → use a shell function
+
+- **Symptom**: a DalkkakAI-only `claude` wrapper placed on the pane's PATH (to inject `--append-system-prompt`, ADR-003) never ran — typing `claude` in a pane still hit the real binary, so no `<dk-summary>` block.
+- **Cause**: PATH set on the spawning bash doesn't reliably reach the interactive zsh inside the tmux session, and — decisively — that zsh re-runs `~/.zshrc`, which does `export PATH="$HOME/.local/bin:$PATH"`, prepending the dir holding the REAL `claude` **ahead** of our wrapper dir. PATH order → real binary wins.
+- **Fix**: a shell **function** instead of a PATH shadow — `claude() { command claude --append-system-prompt "$(cat …/dk-directive.txt)" "$@"; }`. Functions resolve **before** PATH, so it wins regardless of rc ordering. Installed by the app (`inline::ensure_shell_function`) **append-only** (never rewrites the user's file), **backed up** to `~/.zshrc.dalkkak-bak`, **idempotent** (marker), **guarded by `DALKKAK_PANE_ID`** (DalkkakAI panes only). `command claude` inside the function calls the real binary (no recursion).
+- **Commit**: `fad4738`
+- **Pattern**: to reliably intercept a command in an interactive shell, **override it with a function** (beats PATH), not a PATH-shadow binary — the user's rc can re-order PATH at will, but a function defined by that same rc wins. And when editing a user's shell profile: APPEND-ONLY + backup + idempotent marker + a scope guard — never parse/rewrite, so it can't corrupt.
