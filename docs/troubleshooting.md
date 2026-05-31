@@ -97,3 +97,19 @@ Concrete only. Numbers, file paths, commit hashes.
 - **Fix**: NOT resolved. The reliable source is the **transcript file** (clean block), not the rendered stream — read the latest `<dk-summary>` from `transcript_path` (a Stop hook already gives us that path) rather than parsing xterm output. Hiding the block from the visible TUI is the remaining open question (a model can only emit into its response). Tracked in `docs/DECISIONS.md` ADR-003.
 - **Commit**: (finding only; fix pending)
 - **Pattern**: anything you need to read from Claude Code must come from its **structured channels** (hooks, transcript JSONL), NEVER from the rendered TUI byte stream — the TUI repaints + injects ANSI, so literal parsing is luck. We learned this once (ADR-001) and must apply it everywhere, including capture, not just status.
+
+## RESOLVED — read the summary card from the transcript file; drop the stream stripper (ADR-004)
+
+- **Symptom**: (closes the entry above) the ✨ card was empty + the `<dk-summary>` JSON leaked into the pane, because capture/stripping ran on the mangled interactive TUI stream.
+- **Cause**: confirmed — the *transport* was wrong, not the idea. The transcript JSONL holds the model's text un-mangled; the xterm byte stream does not.
+- **Fix**: `summarize.rs::read_inline_summary` reads `transcript_path` from the end, finds the last assistant text block containing `<dk-summary>…</dk-summary>` (`extract_block`), returns its `{kind,data}` — instant, free, reliable (a file read, no model call; also retires the ADR-002 ~22–54s `claude -p` latency for this path). The stream stripper was **removed** (`terminalRegistry.ts` now writes raw PTY bytes to xterm); the visible JSON leak is **accepted** by the maintainer ("JSON이 화면에 뜨는 거 자체는 그럴 수 있을 것 같은데") — a model can only emit into its own reply, so a clean hide isn't possible without the unreliable stripping. Card renders in a centered portal popup (`SummaryModal.tsx`) with a new `note` renderer (`NoteCard.tsx`) and the source pane outlined red.
+- **Commit**: `542d657`
+- **Pattern**: when intercepting a model's output is unreliable, stop intercepting — read the **artifact it already wrote to a structured file** (transcript JSONL), and accept the cosmetic cost (a visible block) rather than fighting the rendered stream. Third application of ADR-001's "structured channels only" law (status → capture → summary).
+
+## Per-session token usage: real numbers from the transcript, but no `$` — never fabricate a dollar figure
+
+- **Symptom**: wanted to show "how much did this session cost" per session in the ✨ popup. The obvious instinct is a dollar amount.
+- **Cause**: the transcript's per-assistant-message `message.usage` carries real `input_tokens` / `output_tokens` / `cache_read_input_tokens` / `cache_creation_input_tokens`, but there is **no `costUSD` field**, and the maintainer runs on a **Max subscription** — there is no per-token bill at all. Any `$` shown would be invented (an API-equivalent price the user never pays). Measured on a live session: input ~40k, output ~1.6M, cache_read ~305M — cache_read dominates but is near-free, so **output** is the only meaningful effort signal.
+- **Fix**: `summarize.rs::session_usage` sums the four token fields + message count across all assistant lines; the popup (`SummaryModal.tsx` `UsageBar`) shows `output / input / cache / turns` with the explicit note "tokens — not a $ bill (subscription)". No dollars rendered.
+- **Commit**: `542d657`
+- **Pattern**: report only numbers the source actually contains. When the honest metric (tokens) isn't the one the user first asked for ($), show the real one with a one-line caveat — never synthesize a plausible figure (a fake `$` on a subscription) to satisfy the question's framing.

@@ -1,0 +1,69 @@
+---
+title: "Layer 2 made reliable: read the summary card from the transcript, and show real token usage (no fake $)"
+date: "2026-05-31"
+project: "dalkkak-ai"
+kind: "tech-retro"
+visibility: "public"
+language: "en"
+summary: "The in-line session-summary card stopped fighting the mangled TUI stream and started reading the un-mangled transcript JSONL (ADR-004). Same file then powers a per-session token-usage line — real numbers, and deliberately no dollar figure on a subscription."
+tags: ["tauri", "claude-code", "transcript", "viz", "honest-metrics"]
+---
+
+## Where this picks up
+
+ADR-003 had the model emit a clean `<dk-summary>{viz}</dk-summary>` block into each pane
+reply, and the app tried to *intercept + strip* that block from the live terminal stream —
+hide it from the user, render it as a card. The card came up **empty** and the raw JSON
+**leaked into the pane**. Root cause (logged the day before): Claude Code's interactive TUI
+mangles the byte stream (ANSI, cursor redraws, markup-handling of the angle-bracket tags),
+so a literal `<dk-summary>` match is luck. This is the *exact* wall that retired TUI
+scraping for live status back in ADR-001 — re-hit, this time for capture.
+
+## The fix was to stop intercepting
+
+The model already writes the block somewhere clean: the **session transcript JSONL**, whose
+path the Stop hook hands us for free. So `read_inline_summary` reads `transcript_path` from
+the end, finds the last assistant text block containing a `<dk-summary>` block, and returns
+its `{kind, data}`. A file read — **instant, free, reliable**. No `claude -p`, which also
+sidesteps the 22–54s latency that made the old on-demand path (ADR-002) feel broken.
+
+The stream stripper is **gone** — `terminalRegistry.ts` now writes raw PTY bytes straight to
+xterm. That means the `<dk-summary>` JSON is **visible** at the bottom of each reply, and
+that's a deliberate trade: a model can only emit into its own response, so there is no
+reliable way to hide it without the stripping that doesn't work. A line of JSON is fine; an
+empty card was not. Jason signed off: *"JSON이 화면에 뜨는 거 자체는 그럴 수 있을 것 같은데."*
+
+The card now renders in a **centered portal popup** (`SummaryModal.tsx`, portaled to
+`<body>` so it escapes the Mosaic tile's containing block instead of being clipped), with the
+source pane outlined red so you know which session it came from, plus a new `note` renderer
+(`NoteCard.tsx`) for the kind the model reaches for most.
+
+This is the third time the same law has paid off: **read Claude's structured channels
+(hooks, transcript JSONL), never the rendered TUI.** Status → capture → summary.
+
+## Then the honest-metrics part: tokens, not dollars
+
+The same transcript carries real per-message `usage` — `input_tokens`, `output_tokens`,
+`cache_read_input_tokens`, `cache_creation_input_tokens`. So `session_usage` sums them and
+the popup shows a usage line: output / input / cache / turns.
+
+What it does **not** show is a dollar figure. There is no `costUSD` in the transcript, and
+the account is a **Max subscription** — there is no per-token bill at all. Any `$` would be
+an API-equivalent price the user never actually pays, i.e. a fabricated number. On a live
+session the split was input ~40k, output ~1.6M, cache_read ~305M: cache_read dominates but
+is near-free, so **output tokens** is the only meaningful effort signal. The UI says exactly
+that — *"tokens — not a $ bill (subscription)"* — and leaves it there.
+
+The discipline: report only what the source contains. When the honest metric (tokens) isn't
+the one the question first reached for ($), show the real one with a one-line caveat rather
+than synthesizing a plausible-looking dollar amount.
+
+## Shipped in the same pass
+
+- Arc-style keyboard nav: **Ctrl+1–9 / Ctrl+Tab** move between startups, **Cmd+1–9 /
+  Cmd+[ ]** move between panes — the browser-tab muscle memory, split cleanly by modifier.
+- Bigger startup sidebar (200px, was 64px) with the ⌃N hint inline.
+- Full en/ko i18n for the new chrome (default English).
+
+Built, `cargo check` + `tsc --noEmit` clean, production-bundled and installed to
+`/Applications`. Commit `542d657`.

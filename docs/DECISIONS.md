@@ -189,3 +189,38 @@ re-hit here for capture. **Next (ADR-004?):** read the latest `<dk-summary>` fro
 xterm stream. Hiding the block from the visible TUI is the remaining open question. The
 self-summary *idea* (ADR-003) stands; only the capture *transport* needs to move from
 stream → transcript. See `docs/troubleshooting.md`.
+
+---
+
+## ADR-004 — Read the in-line summary card from the TRANSCRIPT, not the TUI stream
+
+**Status:** Accepted + Built (2026-05-31)
+**Supersedes:** the *capture transport* of ADR-003 (stream-strip). ADR-003's self-summary
+*idea* is unchanged — the model still emits `<dk-summary>{viz}</dk-summary>` into each reply.
+
+**Decision.** Stop trying to intercept/strip the block from the interactive xterm byte
+stream. Instead, when the user clicks ✨, read the session **transcript JSONL**
+(`transcript_path`, already handed to us by the Stop hook) from the end, find the last
+assistant text block containing a `<dk-summary>` block, and render its `{kind,data}`.
+Implemented as the Rust command `read_inline_summary` (`summarize.rs::extract_block`).
+
+**Why.** The transcript stores the model's text **un-mangled** (no ANSI/cursor-redraw),
+so a literal `<dk-summary>` match works every time. It's also **instant** (a file read, no
+model call) and **free** — no `claude -p`, no API time (kills the ADR-002 latency problem
+too). This is ADR-001's lesson applied a third time: read Claude's structured channels
+(hooks, transcript), never the rendered TUI.
+
+**Accepted tradeoff — the block leaks into the visible pane.** A model can only write into
+its own response, so the `<dk-summary>` JSON is visible at the end of each reply. We tried
+to hide it (stream-strip) and that's the unreliable part — so we **dropped the stripper**
+(`terminalRegistry.ts` writes raw PTY bytes to xterm) and **accept the leak**. The
+maintainer signed off: "JSON이 화면에 뜨는 거 자체는 그럴 수 있을 것 같은데." A line of JSON
+at the bottom of a reply is acceptable; an empty/garbled card was not.
+
+**Result (built + installed 2026-05-31).** Card renders reliably (incl. a new `note`
+renderer, `NoteCard.tsx`) in a **centered portal popup** (`SummaryModal.tsx`, escapes the
+Mosaic tile's containing block) with the source pane outlined red. The popup also shows
+**per-session token usage** summed from the same transcript (`session_usage`) — real
+input/output/cache numbers, **no $** (a Max subscription has no per-token bill and the
+transcript has no `costUSD` field, so a dollar figure would be fabricated). See
+`docs/troubleshooting.md`.
