@@ -1,0 +1,74 @@
+---
+title: "Architecture overview — DalkkakAI as of 2026-05-31"
+date: "2026-05-31"
+project: "dalkkak-ai"
+kind: "snapshot"
+visibility: "public"
+language: "en"
+summary: "Tauri 2 desktop app: React 19 renderer hosts xterm panes that attach to PTYs owned by a Rust backend, which spawns each pane into a per-pane tmux session."
+tags: ["architecture", "snapshot"]
+---
+
+## System shape
+
+```
+┌─────────────────────────────────────────────┐
+│ React 19 renderer  (apps/desktop/src)        │
+│  App.tsx → react-mosaic layout + Sidebar     │
+│  TerminalPane.tsx ── attaches DOM node ───┐  │
+│  terminalRegistry.ts (xterm + PTY id map)  │  │
+└──────────────────┬──────────────────────────┘
+                   │ Tauri IPC: pty_spawn / write / resize / kill
+                   │           log_augmentor_event
+                   │ Event stream: pty-output
+                   ▼
+┌─────────────────────────────────────────────┐
+│ Rust backend  (apps/desktop/src-tauri/src)   │
+│  lib.rs   — commands, tracing init           │
+│  pty.rs   — portable-pty spawn + env hygiene │
+│  capture.rs / hooks.rs / inline.rs /         │
+│  summarize.rs / paths.rs                     │
+└──────────────────┬──────────────────────────┘
+                   │ spawns: bash -c "tmux new-session -A -D -s dalkkak-<id>"
+                   ▼
+        tmux server (-L dalkkak, system daemon)
+                   │
+                   ▼
+           user shell / claude / npm / ...
+```
+
+## Key libs / modules
+
+- `apps/desktop/src/App.tsx` — react-mosaic layout, workspace sidebar wiring, keyboard shortcuts
+- `apps/desktop/src/terminalRegistry.ts` — module-level xterm + PTY registry that survives React unmount/remount on layout splits
+- `apps/desktop/src/TerminalPane.tsx` — thin DOM attachment component; re-parents the registry-owned terminal node
+- `apps/desktop/src-tauri/src/pty.rs` — `portable-pty` spawn, explicit env (`PATH`, `TERM`, `LANG`/`LC_CTYPE`), bash wrapper, tmux launch
+- `apps/desktop/src-tauri/src/lib.rs` — 5 Tauri commands + `tracing` setup
+- `apps/desktop/src/viz/` — viz layer v1 renderers (Activity, Concept, Mermaid, Note, Plan, Question, Recap, SessionStatusBar, SummaryModal) plus `tokens.ts`, `anim.ts`
+- `packages/` — workspace packages `augmentor`, `viz`, `advisor`, `shared`, `skills`, `platform-client` (pnpm workspace, only `augmentor` and `shared` are currently consumed by `apps/desktop` per its `package.json`)
+
+## Why these choices
+
+- **tmux for persistence** — each pane runs `tmux new-session -A -D -s dalkkak-<id>` (README, `pty.rs`); the daemon outlives the app so relaunch re-attaches existing sessions instead of needing a custom serialization protocol.
+- **Terminal lifetime outside React** — `react-mosaic` keys panes by path; split changes path → unmount. xterm + PTY id live in `terminalRegistry.ts` so layout changes don't kill running shells.
+- **Explicit subprocess environment** — `pty.rs` sets `TERM`, `COLORTERM`, locale, and prepends `/opt/homebrew/bin` to `PATH` because GUI-launched bundles inherit a minimal env (cause of three documented PTY bugs, see `troubleshooting.md`).
+- **Dedicated tmux server (`-L dalkkak`)** — isolates from the user's other tmux servers and from macOS TCC quirks (commit `9828c08`, `troubleshooting.md` entry on Korean/CJK).
+- **react-mosaic pinned at 6.1.1** — README states v7 beta broke the tree API.
+
+## Boundaries
+
+- Product mission, phase plan, and rationale for Tauri vs Swift: `docs/BLUEPRINT.md`
+- Roadmap / phase backlog: `docs/ROADMAP.md`, `docs/BACKLOG.md`
+- Architecture decisions (ADRs, e.g. ADR-001 per-session status hooks, ADR-002/003 self-summary): `docs/DECISIONS.md`
+- Per-incident post-mortems (6-section format): `docs/ISSUES.md`
+- Stack inventory: `docs/STACK.md`
+- Connective layer design: `docs/CONNECTIVE_LAYER.md`
+- Viz vocabulary: `docs/VIZ_VOCABULARY.md`
+- Migration history from old Python/FastAPI: `docs/MIGRATION_PLAN.md`, `old_repo/`
+- Per-issue Symptom/Cause/Fix index: `docs/troubleshooting.md`
+- Dated build log (this directory): `content/logs/dalkkak-ai/`
+
+## State of completion
+
+Phase 1 shipped as unsigned v0.1.0 beta on macOS Apple Silicon (multi-pane grid, tmux-backed persistence, multi-workspace sidebar, keyboard nav, two-layer logging). Viz layer v1 and a per-session status bar (Layer 1 + Layer 2 in-line self-summary via ADR-003) are landed but the Layer 2 summary path is measured at ~22–54s and the first-pane WKWebView Korean-IME case remains unresolved (workaround: split). Phases 2–4 (output augmentation, cross-workspace operator layer, signed release) are roadmap only; the augmentor's hardcoded patterns are an admitted dead-end pending a move to the Claude Code hooks API. Zero production users; the one-week dogfood test has not run.
+

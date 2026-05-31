@@ -1,0 +1,95 @@
+---
+title: "ADR-001: hooks (not TUI scraping) for per-session status"
+date: "2026-05-30"
+project: "dalkkak-ai"
+kind: "decision"
+tier: "1"
+status: "accepted"
+reversibility: "medium"
+visibility: "public"
+language: "en"
+summary: "Per-session live status (working / needs-you / done) will be driven by Claude Code hooks emitting structured events, not by scraping the TUI. TUI scraping was proven unreliable (spinner repaints, never crosses \\n); hooks are free, structured, and reversible. Verified end-to-end the next day: 37 events across 3 correctly-tagged panes, stale-working bug gone."
+backfilled: true
+tags: ["adr", "claude-code", "hooks", "observability", "pty", "decision"]
+---
+
+## Context & constraints
+
+DalkkakAI runs many parallel Claude Code sessions, one per pane. A reliable per-pane live status — working / needs-you-input / done — is required for the strip indicator and downstream UX (cross-startup dashboard, advisor, attention routing).
+
+v1 attempted this by scraping the Claude Code TUI text through the augmentor (`StreamParser` reading PTY output). Across three real panes, only one rendered a status strip, and that one was a stale **misparse** ("Yourhomedirectory", harvested from prose). Root cause confirmed from logs and screenshots: Claude Code's TUI repaints its spinner in place, so the status line never reaches a `\n` and a line-oriented parser never sees a stable token. This is a structural property of the TUI, not a tuning gap.
+
+Constraints in force at decision time:
+- No paid LLM calls for status (must stay free at the per-event tier).
+- Must distinguish needs-you from done (a coarse active/idle signal is not enough).
+- Must not slow Claude Code or block its main loop.
+- Should be reversible — DalkkakAI is consumer software; editing the user's Claude config is a serious act.
+
+Antecedents grounding the decision: commit `04b995e` (TUI scraping attempt), `content/logs/dalkkak-ai/2026-05-30-per-session-status-tui-limit.mdx`, and two screenshots showing the stale "Yourhomedirectory" misparse.
+
+## Goals (ranked, inferred from commit context)
+
+1. **Reliability** — status must reflect reality, never go stale. The misparse bug must be impossible by construction, not just patched.
+2. **Free at runtime** — per-event detection cannot cost tokens. Rich LLM summaries are a separate, later layer.
+3. **State granularity** — needs-you vs done must be distinguishable, not folded into a single "idle".
+4. **Reversibility** — whatever touches the user's Claude config must be backed up, scoped, and removable in one step.
+5. **Low coupling to Claude internals** — accept that we depend on Claude Code's hook API, but keep the surface narrow so future API drift is a small fix.
+
+## Options considered
+
+Options surfaced from the diff (`docs/DECISIONS.md` ADR-001 table):
+
+| Option | Touches Claude config? | Cost | Reliability |
+|---|---|---|---|
+| 1. Keep tuning TUI patterns | No | Free | Unreliable — status lines never arrive as parseable lines; this is structural, not a tuning problem. |
+| 2. Claude Code hooks (PreToolUse / PostToolUse / Notification / Stop / UserPromptSubmit) | Yes — `~/.claude/settings.json` | Free — hooks run a tiny local command, not an AI call | Reliable — Claude emits structured events keyed by a `DALKKAK_PANE_ID` env var injected at PTY spawn. |
+| 3. Process check (is the Claude process active?) | No | Free | Reliable but coarse — active/idle only; cannot tell needs-you from done. |
+
+Honest downsides of option 2 noted in the ADR itself: edits `~/.claude/settings.json` (mitigated: backup, scope to DalkkakAI via the env-var guard, fully reversible); coupling to Claude's hook API; hook command runs on every event so it must stay trivial and non-blocking; a local event file accumulates and needs rotation; Claude-only (other tools won't emit), metadata only (tool / ts / pane), stays local.
+
+## Trade-off accepted (inferred)
+
+Accept a one-time, scoped edit to the user's `~/.claude/settings.json` (with backup, env-var-guarded so other Claude sessions are unaffected, and one-step removable) in exchange for: a free, reliable, structured status signal that distinguishes thinking / done / needs-you. The alternative that avoids touching config (option 3) cannot meet goal 3 (granularity). The alternative that avoids coupling (option 1) cannot meet goal 1 (reliability) because the failure is structural.
+
+Implicit trade-off also accepted: a thin tool-name detail in the "working · `<tool>`" line, because `PreToolUse` fires sparsely under auto-mode. Core states are the priority; tool-name granularity is downgraded to a later refinement.
+
+## Decision criteria to flip
+
+Flip back (or to option 3) if any of these hold:
+- Claude Code's hook API is removed or substantially changed and the migration cost outweighs the value of granular states.
+- Users push back on the config edit even after the backup + scope + reversibility story.
+- Event-file rotation or hook overhead is measured to slow Claude Code perceptibly.
+- A first-party Claude Code status API arrives that exposes per-session state without config edits.
+
+Flip toward something richer (LLM summaries on top of hooks) only when the hook stream proves stable in real multi-pane use over weeks — which is the layer the rich-cards feature will sit on, not a replacement for ADR-001.
+
+## Success measure (or "not measured at the time")
+
+Measured the next day, in the follow-up commit `59e2483`:
+- `session-events.jsonl` captured **37 hook events across 3 correctly-tagged panes**.
+- Strip transitions verified: `UserPromptSubmit` → thinking, `Stop` → done, `Notification` → needs-you.
+- Stale-working bug gone (maintainer confirmed in Korean: "done으로 바뀜" — "it flipped to done").
+- Known gap, recorded: `PreToolUse` fires sparsely (1 in the sample), so the `working · <tool>` detail is thin. Tool-name granularity flagged as a future refinement, likely matcher / auto-mode related. Core states are solid.
+
+## Reversal plan
+
+1. Delete the DalkkakAI hook entries from `~/.claude/settings.json` (the installer wrote a scoped block and kept a backup; restore the backup if needed).
+2. Stop the Rust receiver that watches the event file; remove the Tauri event wiring into `sessionStatus.ts`.
+3. Stop injecting `DALKKAK_PANE_ID` in `pty.rs` (or leave it — harmless without a hook reading it).
+4. Fall back to option 3 (process check) for a coarse active/idle signal, accepting the loss of needs-you vs done granularity until a replacement signal is found.
+
+The reversal is mechanical because the hooks are env-var-guarded — no other Claude sessions are affected and nothing in DalkkakAI's source needs to be rewritten, only disconnected.
+
+## Verified by (post-hoc — what later commits prove this works?)
+
+- `59e2483` (2026-05-31) — "ADR-001 verified working — hooks status confirmed end-to-end." Appended a "Verified (2026-05-31)" section to `docs/DECISIONS.md` documenting the 37 events / 3 panes / state transitions, grounded in `session-events.jsonl` and maintainer confirmation.
+- The build artifacts described in the ADR's Consequences section — `DALKKAK_PANE_ID` injection in `pty.rs`, the hook-config installer (backup + merge, never overwrite), the Rust receiver watching the event file, Tauri event wiring into `sessionStatus.ts` — are the implementation footprint to look for in subsequent commits.
+
+## Status — Accepted (backfilled)
+
+Original ADR commit (`d10738d`) recorded status as "Proposed, pending maintainer pick." The verification commit (`59e2483`) effectively accepted it end-to-end. This entry backfills the decision as **Accepted** because the live system now runs on hooks and the stale-working bug is closed.
+
+Original rationale lives in `docs/DECISIONS.md` ADR-001; this log surfaces it to `/projects/dalkkak-ai` because both source commits were tagged `[no-log]` and the canonical "why hooks" reasoning would otherwise be buried.
+
+## Commit — `d10738d` and `59e2483`
+
