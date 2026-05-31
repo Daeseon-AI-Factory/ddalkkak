@@ -109,7 +109,13 @@ pub fn spawn(window: Window, id: String, cols: u16, rows: u16) -> Result<PtySess
     // RULE #5b — explicit env hygiene
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
-    cmd.env("PATH", augmented_path());
+    // Prepend the DalkkakAI-only `claude` wrapper dir (ADR-003) so the pane's Claude
+    // self-summarizes. Scoped to DalkkakAI panes; the user's Claude elsewhere is untouched.
+    let path = match crate::inline::ensure_wrapper() {
+        Some(dir) => format!("{}:{}", dir.display(), augmented_path()),
+        None => augmented_path(),
+    };
+    cmd.env("PATH", path);
 
     for var in [
         "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "LC_CTYPE",

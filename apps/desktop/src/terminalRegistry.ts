@@ -12,7 +12,8 @@ import { FitAddon } from "@xterm/addon-fit";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { StreamParser } from "@ddalkkak/augmentor";
-import { clearSessionStatus } from "./sessionStatus";
+import { applyInlineSummary, clearSessionStatus } from "./sessionStatus";
+import { SummaryStripper } from "./summaryStripper";
 
 interface PtyOutputEvent {
   id: string;
@@ -25,6 +26,7 @@ interface RegistryEntry {
   unlisten: UnlistenFn | null;
   spawned: boolean;
   parser: StreamParser;
+  stripper: SummaryStripper;
 }
 
 const registry = new Map<string, RegistryEntry>();
@@ -52,7 +54,8 @@ export function getOrCreateTerminal(id: string): RegistryEntry {
   term.loadAddon(fit);
 
   const parser = new StreamParser();
-  const entry: RegistryEntry = { term, fit, unlisten: null, spawned: false, parser };
+  const stripper = new SummaryStripper();
+  const entry: RegistryEntry = { term, fit, unlisten: null, spawned: false, parser, stripper };
   registry.set(id, entry);
 
   // Subscribe to PTY output for this id, once. The subscription survives
@@ -60,21 +63,25 @@ export function getOrCreateTerminal(id: string): RegistryEntry {
   void (async () => {
     const off = await listen<PtyOutputEvent>("pty-output", (event) => {
       if (event.payload.id === id) {
-        // Phase 2.1 — augmentor parses BEFORE writing to xterm.
-        // Parser is sync; event log is fire-and-forget.
+        // ADR-003: pull the pane Claude's <dk-summary> blocks OUT of the stream so the
+        // user never sees them; each becomes that session's card. We write the STRIPPED
+        // text to xterm. On any error, fall back to the raw data (never drop output).
+        let display = event.payload.data;
         try {
-          // Augmentor still parses for the dev-time event log; per-session STATUS now
-          // comes from Claude Code hooks (sessionStatus.ts / hooks.rs), not this stream —
-          // TUI scraping proved unreliable. See docs/DECISIONS.md ADR-001.
-          const evts = parser.feed(event.payload.data);
+          const out = stripper.feed(event.payload.data);
+          display = out.display;
+          for (const json of out.summaries) applyInlineSummary(id, json);
+          // Augmentor parses the visible text for the dev-time event log; per-session
+          // STATUS comes from Claude Code hooks (sessionStatus.ts / hooks.rs). See ADR-001.
+          const evts = parser.feed(display);
           for (const evt of evts) {
             void invoke("log_augmentor_event", { id, event: evt as unknown as Record<string, unknown> }).catch(() => {});
             if (import.meta.env?.DEV) console.debug(`[augmentor ${id}]`, evt);
           }
         } catch (e) {
-          console.warn("augmentor parser threw:", e);
+          console.warn("stream filter/augmentor threw:", e);
         }
-        term.write(event.payload.data);
+        term.write(display);
       }
     });
     entry.unlisten = off;

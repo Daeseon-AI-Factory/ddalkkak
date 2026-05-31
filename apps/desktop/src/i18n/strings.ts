@@ -52,6 +52,7 @@ const en = {
   "session.summarize": "Summarize",
   "summary.loading": "Summarizing this session…",
   "summary.title": "Session summary",
+  "summary.none": "No summary yet — give this session a turn first.",
 } as const;
 
 export type StringKey = keyof typeof en;
@@ -101,6 +102,7 @@ const ko: Record<StringKey, string> = {
   "session.summarize": "요약",
   "summary.loading": "이 세션 요약 중…",
   "summary.title": "세션 요약",
+  "summary.none": "아직 요약 없음 — 이 세션에 한 번 시켜봐.",
 };
 
 export const STRINGS: Record<Lang, Record<StringKey, string>> = { en, ko };

@@ -2,6 +2,7 @@
 
 mod capture;
 mod hooks;
+mod inline;
 mod paths;
 mod pty;
 mod summarize;
@@ -165,6 +166,10 @@ pub fn run() {
             app.manage(capture::GraphStore::new());
             capture::spawn_worker(app.handle().clone());
             hooks::spawn_watcher(app.handle().clone());
+            // ADR-003 in-line self-summary: write the directive + install the guarded
+            // `claude` shell function (append-only, backed up, idempotent, DalkkakAI-only).
+            inline::ensure_wrapper();
+            inline::ensure_shell_function();
             info!(target: "lifecycle", "tauri app setup complete");
             Ok(())
         })

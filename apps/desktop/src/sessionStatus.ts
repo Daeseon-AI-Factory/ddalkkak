@@ -13,6 +13,7 @@ export interface SessionStatus {
   lastTool?: string;
   updatedAt: number; // 0 = no event seen yet → the strip stays hidden
   tpath?: string; // latest transcript_path for this pane (for on-demand summarize, ADR-002)
+  card?: { kind: string; data: unknown }; // latest in-line self-summary (ADR-003)
 }
 
 const DEFAULT: SessionStatus = { state: "idle", updatedAt: 0 };
@@ -49,6 +50,24 @@ export function applyHookEvent(raw: string): void {
     lastTool: msg.tool || (state === "tool-call" ? prev?.lastTool : undefined),
     updatedAt: Date.now(),
     tpath: msg.tpath || prev?.tpath,
+  });
+  emit();
+}
+
+/** Handle one captured `<dk-summary>` block (raw JSON) — the in-line self-summary (ADR-003). */
+export function applyInlineSummary(id: string, rawJson: string): void {
+  let payload: { kind?: string; data?: unknown };
+  try {
+    payload = JSON.parse(rawJson);
+  } catch {
+    return;
+  }
+  if (!payload.kind) return;
+  const prev = statuses.get(id) ?? DEFAULT;
+  statuses.set(id, {
+    ...prev,
+    card: { kind: payload.kind, data: payload.data },
+    updatedAt: Date.now(),
   });
   emit();
 }

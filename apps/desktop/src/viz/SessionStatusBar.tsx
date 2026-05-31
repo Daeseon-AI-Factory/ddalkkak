@@ -4,7 +4,6 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { invoke } from "@tauri-apps/api/core";
 import type { ActivityState } from "@ddalkkak/augmentor";
 import { useT } from "../i18n";
 import type { StringKey } from "../i18n/strings";
@@ -91,17 +90,11 @@ export function SessionStatusBar({ id }: { id: string }) {
 
   const m = META[s.state];
 
-  const run = async () => {
-    if (!s.tpath) return;
-    setSummary({ kind: "loading" });
-    try {
-      const payload = await invoke<{ kind: string; data: unknown }>("summarize_session", {
-        transcriptPath: s.tpath,
-      });
-      setSummary({ kind: "done", payload });
-    } catch (e) {
-      setSummary({ kind: "error", msg: String(e) });
-    }
+  // ADR-003: the card is captured in-line (the pane's own Claude emits it), so ✨ just
+  // shows the latest one instantly — no call, no wait.
+  const showCard = () => {
+    if (s.card) setSummary({ kind: "done", payload: s.card });
+    else setSummary({ kind: "error", msg: t("summary.none") });
   };
 
   return (
@@ -130,24 +123,22 @@ export function SessionStatusBar({ id }: { id: string }) {
         )}
         <span style={{ color: m.color, fontWeight: 600 }}>{t(m.tkey)}</span>
         {s.lastTool && s.state === "tool-call" && <span style={{ color: c.dim }}>· {s.lastTool}</span>}
-        {s.tpath && (
-          <button
-            type="button"
-            onClick={() => void run()}
-            title={t("session.summarize")}
-            style={{
-              marginLeft: "auto",
-              background: "transparent",
-              border: "none",
-              color: c.accent,
-              cursor: "pointer",
-              fontSize: 11,
-              padding: "0 4px",
-            }}
-          >
-            ✨ {t("session.summarize")}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={showCard}
+          title={t("session.summarize")}
+          style={{
+            marginLeft: "auto",
+            background: "transparent",
+            border: "none",
+            color: s.card ? c.accent : c.dim,
+            cursor: "pointer",
+            fontSize: 11,
+            padding: "0 4px",
+          }}
+        >
+          ✨ {t("session.summarize")}
+        </button>
       </div>
 
       {summary.kind !== "idle" && (
