@@ -1,0 +1,68 @@
+---
+title: "Per-session status v1 — and why you can't scrape it from a TUI"
+date: "2026-05-30"
+project: "dalkkak-ai"
+kind: "troubleshoot"
+visibility: "public"
+language: "en"
+summary: "Wired the augmentor event stream into a live per-session status strip and dogfooded it across three real Claude panes — then hit a wall: Claude Code repaints its spinner in place, so a line parser catches the status only by luck. The honest conclusion is to use Claude Code hooks, not TUI scraping. Plus a small UX fix: the hidden startup-delete is now a visible button."
+tags: ["augmentor", "tui", "claude-code", "hooks", "ux"]
+---
+
+## What I built
+
+The connective layer already runs the augmentor (`StreamParser.feed`) on every pane's
+PTY output — but the events went nowhere. Layer 1 of per-session viz routes them into a
+small external store (`sessionStatus.ts`) and a live strip on top of each pane
+(`SessionStatusBar.tsx`): 🟢 working · `Tool` / ⛔ needs you / ✓ done, hidden on plain
+shells. Per-startup-then-per-session is the scope the founder asked for.
+
+## Where it broke
+
+Dogfooded across three real Claude Code panes. Only ONE showed a strip — and that one
+was wrong twice over:
+
+```
+8u9i:  🟢 working · Yourhomedirectory   ← stale + a misparse
+oa37:  (no strip)                       ← but the screen clearly showed "Worked for 7s"
+6tnc:  (no strip)
+```
+
+"Yourhomedirectory" isn't a tool — it's Claude's prose "Your home directory (" with the
+space eaten by a TUI redraw, matched by the tool-call regex by accident.
+
+## Root cause (verified)
+
+A normal terminal is a printer: it emits newline-terminated lines we can read. Claude
+Code's TUI is a whiteboard: it **repaints its spinner in place** ("Crunched for 1s",
+"Worked for 7s") using cursor moves, never emitting those as real lines. `StreamParser`
+splits on `\n`, so the status text — though visible on screen — **never arrives as a
+parseable line**. A pane lights up only if some prose happens to flush as a clean line
+that matches. That's luck, not detection.
+
+I broadened the patterns anyway (`<Word> for <N>s`, `esc to interrupt`) — no help,
+because the bytes never come through as lines. Confirmed it's a dead end, not a tuning
+problem.
+
+## The real fix (next)
+
+Stop scraping the rendered output; use Claude Code's **structured event channel** —
+hooks. Claude emits tool start/stop, prompt, and stop events; we tag each with the pane
+via an injected `DALKKAK_PANE_ID` env var and route them to the app. That's reliable,
+per-session, and it's the same foundation the Layer-2 rich cards need. The sibling
+`viz-agents` project reached the same conclusion (`install_hooks.py`).
+
+## Also (small UX)
+
+The startup-delete feature already existed but was hidden behind right-click — a
+non-engineer would never find it. Added a visible `⋯` button to every sidebar startup
+(rename / change emoji / grant folder / delete). The feature wasn't missing; its
+discoverability was.
+
+## Lesson
+
+Never derive program state by scraping a full-screen TUI's byte stream — it repaints in
+place, so a line parser sees a fraction of what's on screen. Use the program's
+structured events (hooks / IPC), not its pixels.
+
+**Commit**: `04b995e`

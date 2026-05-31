@@ -477,3 +477,16 @@ The tell was beautiful: capture could read the folder but the shell couldn't —
 - "Your real commits, auto-rendered as readable cards, grouped per startup."
 - "Switch English ⇄ Korean instantly — built for a non-engineer founder, not a terminal jockey."
 
+## 2026-05-30 — Per-session status v1 + the TUI-scraping dead end (+ delete discoverability)
+
+### 🔧 Engineering
+- Routed the augmentor event stream (already running per pane) into a live per-session status strip (`sessionStatus.ts` external store + `SessionStatusBar.tsx`). Dogfooded across THREE real Claude panes → only one lit up, and that one was a stale misparse ("Yourhomedirectory" from the prose "Your home directory ("). Root cause (verified by screenshot): Claude Code's TUI repaints its spinner in place ("Worked for 7s") via cursor moves, so a `\n`-line parser never receives the status as a line — detection is luck, not signal. Broadening patterns (`<Word> for <N>s`, `esc to interrupt`) did NOT help; the lines never arrive. Conclusion: TUI scraping is a dead end. Reliable path = Claude Code hooks (structured events tagged with an injected `DALKKAK_PANE_ID`), the same approach `viz-agents` took (`install_hooks.py`). Also: startup-delete already existed but was hidden behind right-click → added a visible `⋯` options button per sidebar startup. Commit `04b995e`.
+
+### 💬 Raw
+- Frustrating but clarifying. I spent the build on Layer 1 and it "worked" on exactly one pane — and even that was wrong. The screenshot made it obvious: we were reading a whiteboard by holding a tape recorder up to it. Knowing it's a dead end (and why) is worth more than a flaky strip that lies. Jason also called out that the logs were thinner than the actual work — fair, and honest: the history is solid back to March, but today's most-recent hour wasn't recorded. This entry closes that gap. No padding — just what really happened.
+
+### 📣 Marketing
+- "See every parallel session at a glance — what each AI is doing, across all your startups." (the goal; the reliable version reads Claude's own events, not the screen)
+- "Delete a startup in one click — no hidden right-click menus."
+- "We ship the honest limitation, not the flaky feature."
+
