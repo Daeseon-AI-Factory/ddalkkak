@@ -113,3 +113,11 @@ Concrete only. Numbers, file paths, commit hashes.
 - **Fix**: `summarize.rs::session_usage` sums the four token fields + message count across all assistant lines; the popup (`SummaryModal.tsx` `UsageBar`) shows `output / input / cache / turns` with the explicit note "tokens — not a $ bill (subscription)". No dollars rendered.
 - **Commit**: `542d657`
 - **Pattern**: report only numbers the source actually contains. When the honest metric (tokens) isn't the one the user first asked for ($), show the real one with a one-line caveat — never synthesize a plausible figure (a fake `$` on a subscription) to satisfy the question's framing.
+
+## "This turn" token usage: tool-result messages are also `type:"user"`, so naive turn-boundary detection is wrong
+
+- **Symptom**: needed to show the CURRENT turn's tokens (not just the session total). First instinct — "take the last assistant message" or "sum back to the last `type:"user"` line" — both wrong.
+- **Cause** (verified on a real 4159-line transcript): one user turn produced **47 assistant messages** (a turn with many tool calls emits one assistant message per round), so "last message only" undercounts by ~40×. And the cut-to-last-`type:"user"` approach fails too: Claude Code records **tool results as `type:"user"`** as well (content is an array carrying a `tool_result` block), so the real turn boundary is *not* the last user-typed line. Measured: real last prompt at line 4033, the turn's summed output was 77.9k across those 47 messages.
+- **Fix**: `summarize.rs::is_user_prompt` treats a line as a real prompt only if `type=="user"` AND content is a string (or an array with NO `tool_result` block). `session_usage` finds the last such line and sums assistant usage after it into `turn`, everything into `session`; returns `{session, turn}`. The popup shows both rows (cache only on the session row).
+- **Commit**: `4c2445a`
+- **Pattern**: in a Claude Code transcript, `type:"user"` is NOT a reliable "human turn" marker — tool results wear the same type. To segment by human turn, test the content shape (string / text-only array = real prompt; array-with-tool_result = machine). Always validate turn-segmentation against a real multi-tool transcript, where one prompt fans out to dozens of assistant messages.
