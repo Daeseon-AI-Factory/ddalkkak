@@ -1,18 +1,17 @@
-//! Per-session live status, derived from the augmentor event stream.
+//! Per-session live status, driven by Claude Code HOOK events (see docs/DECISIONS.md
+//! ADR-001 — the reliable path, replacing the unreliable TUI scraping).
 //!
-//! The augmentor already runs on every pane's PTY output (terminalRegistry.ts). This
-//! is the tiny external store that turns those events into a coarse "what is this
-//! session's Claude doing right now" state, subscribable from React via useSessionStatus.
-//! Layer 1 of per-session viz — deterministic, no LLM. Layer 2 (rich cards via the BYO
-//! LLM) builds on the same event stream.
+//! Flow: a hook in the user's Claude config writes one line per event to a file →
+//! the Rust watcher (hooks.rs) tails it and emits a `session-hook` Tauri event →
+//! App.tsx routes each here via applyHookEvent → React reads it with useSessionStatus.
 
 import { useSyncExternalStore } from "react";
-import type { ActivityState, AugmentorEvent } from "@ddalkkak/augmentor";
+import type { ActivityState } from "@ddalkkak/augmentor";
 
 export interface SessionStatus {
   state: ActivityState;
   lastTool?: string;
-  updatedAt: number; // 0 = never emitted an event (e.g. a plain shell, no Claude)
+  updatedAt: number; // 0 = no event seen yet → the strip stays hidden
 }
 
 const DEFAULT: SessionStatus = { state: "idle", updatedAt: 0 };
@@ -23,29 +22,30 @@ function emit(): void {
   for (const l of listeners) l();
 }
 
-/** Coarse activity state for an event (fallback by type when state is absent). */
-function stateOf(e: AugmentorEvent): ActivityState {
-  if (e.state) return e.state;
-  switch (e.type) {
-    case "tool-call":
-      return "tool-call";
-    case "prompt":
-      return "blocked";
-    case "completion":
-      return "completed";
-    default:
-      return "thinking";
-  }
-}
+/** Claude Code hook event name → coarse activity state. */
+const HOOK_STATE: Record<string, ActivityState> = {
+  UserPromptSubmit: "thinking", // user asked something → Claude is on it
+  PreToolUse: "tool-call", // running a tool
+  PostToolUse: "tool-call", // tool finished, likely more work
+  Notification: "blocked", // waiting on the user (permission / input)
+  Stop: "completed", // finished the turn → idle/done
+};
 
-/** Fold a batch of fresh augmentor events into a session's status. */
-export function applyEvents(id: string, events: AugmentorEvent[]): void {
-  if (events.length === 0) return;
-  const last = events[events.length - 1];
-  const prev = statuses.get(id);
-  statuses.set(id, {
-    state: stateOf(last),
-    lastTool: last.tool ?? prev?.lastTool,
+/** Handle one `session-hook` payload — a raw JSON line `{pane, event, tool, ts}`. */
+export function applyHookEvent(raw: string): void {
+  let msg: { pane?: string; event?: string; tool?: string };
+  try {
+    msg = JSON.parse(raw);
+  } catch {
+    return;
+  }
+  if (!msg.pane || !msg.event) return;
+  const state = HOOK_STATE[msg.event];
+  if (!state) return;
+  const prev = statuses.get(msg.pane);
+  statuses.set(msg.pane, {
+    state,
+    lastTool: msg.tool || (state === "tool-call" ? prev?.lastTool : undefined),
     updatedAt: Date.now(),
   });
   emit();

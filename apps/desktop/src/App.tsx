@@ -8,6 +8,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { grantPathFor } from "./pathGrant";
 import { GraphPanel } from "./GraphPanel";
 import { useT } from "./i18n";
+import { listen } from "@tauri-apps/api/event";
+import { applyHookEvent } from "./sessionStatus";
 import {
   layoutKeyFor,
   loadActiveStartupId,
@@ -129,6 +131,14 @@ export default function App() {
   );
   const [showGraph, setShowGraph] = useState(false);
   const { lang, setLang } = useT();
+
+  // Per-session status from Claude Code hooks (hooks.rs → "session-hook"). See ADR-001.
+  useEffect(() => {
+    const un = listen<string>("session-hook", (e) => applyHookEvent(e.payload));
+    return () => {
+      void un.then((f) => f());
+    };
+  }, []);
 
   const dismissOnboarding = () => {
     try { localStorage.setItem("dalkkak.onboarded.v1", "1"); } catch {}

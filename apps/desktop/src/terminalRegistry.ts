@@ -12,7 +12,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { StreamParser } from "@ddalkkak/augmentor";
-import { applyEvents, clearSessionStatus } from "./sessionStatus";
+import { clearSessionStatus } from "./sessionStatus";
 
 interface PtyOutputEvent {
   id: string;
@@ -63,8 +63,10 @@ export function getOrCreateTerminal(id: string): RegistryEntry {
         // Phase 2.1 — augmentor parses BEFORE writing to xterm.
         // Parser is sync; event log is fire-and-forget.
         try {
+          // Augmentor still parses for the dev-time event log; per-session STATUS now
+          // comes from Claude Code hooks (sessionStatus.ts / hooks.rs), not this stream —
+          // TUI scraping proved unreliable. See docs/DECISIONS.md ADR-001.
           const evts = parser.feed(event.payload.data);
-          applyEvents(id, evts); // → live per-session status (sessionStatus.ts)
           for (const evt of evts) {
             void invoke("log_augmentor_event", { id, event: evt as unknown as Record<string, unknown> }).catch(() => {});
             if (import.meta.env?.DEV) console.debug(`[augmentor ${id}]`, evt);

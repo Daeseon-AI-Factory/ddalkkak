@@ -85,8 +85,11 @@ pub fn spawn(window: Window, id: String, cols: u16, rows: u16) -> Result<PtySess
     let tmux_session = format!("dalkkak-{}", id);
 
     // bash wrapper — tmux failures become visible, then fallback shell so user can debug.
+    // `-e DALKKAK_PANE_ID=<id>` tags THIS tmux session (per-session env, not the shared
+    // `-L dalkkak` server's global env) so a Claude Code hook running inside the pane can
+    // stamp its events with the pane id. See docs/DECISIONS.md ADR-001 (per-session status).
     let cmd_str = format!(
-        "{tmux} -L dalkkak new-session -A -D -s {sess} 2>&1; \
+        "{tmux} -L dalkkak new-session -A -D -s {sess} -e DALKKAK_PANE_ID={paneid} 2>&1; \
          status=$?; \
          if [ $status -ne 0 ]; then \
            echo ''; \
@@ -97,6 +100,7 @@ pub fn spawn(window: Window, id: String, cols: u16, rows: u16) -> Result<PtySess
          exec ${{SHELL:-/bin/bash}}",
         tmux = tmux_path,
         sess = tmux_session,
+        paneid = id,
     );
 
     let mut cmd = CommandBuilder::new("/bin/bash");

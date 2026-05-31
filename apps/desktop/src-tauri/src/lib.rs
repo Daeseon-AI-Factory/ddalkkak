@@ -1,6 +1,7 @@
 //! Tauri entry. Per-pane PTY sessions keyed by id.
 
 mod capture;
+mod hooks;
 mod paths;
 mod pty;
 
@@ -156,6 +157,7 @@ pub fn run() {
             app.manage(paths::PathAllowlist::new());
             app.manage(capture::GraphStore::new());
             capture::spawn_worker(app.handle().clone());
+            hooks::spawn_watcher(app.handle().clone());
             info!(target: "lifecycle", "tauri app setup complete");
             Ok(())
         })

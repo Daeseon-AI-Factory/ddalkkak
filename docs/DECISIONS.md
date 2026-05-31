@@ -13,7 +13,7 @@
 ## ADR-001 — Per-session status: how to detect what each pane's Claude is doing
 
 - **Date:** 2026-05-30
-- **Status:** Proposed (awaiting maintainer pick: hooks vs process-check)
+- **Status:** Accepted — Option 2 (hooks), maintainer 2026-05-30
 
 ### Context
 We want a reliable live status per pane — working / needs-you / done — across many
@@ -50,11 +50,10 @@ cards", which *would* cost tokens).
    code/content, stays local.
 
 ### Decision
-**Pending.** Recommendation: **Option 2 (hooks)** — free, and the only option that
-actually fixes the stale-status flaw the maintainer caught. The single real risk (a
-config edit) is mitigated by backup + scope + reversibility. Fallback if the config
-edit is unwanted: **Option 3 (process check)** for reliable active/idle without touching
-config.
+**Accepted: Option 2 (hooks)** — maintainer chose "추천대로" on 2026-05-30. Free, and the
+only option that actually fixes the stale-status flaw. The single real risk (a config
+edit) is mitigated by backup + scope (DalkkakAI-only guard) + reversibility. Fallback if
+hooks ever prove too fragile: **Option 3 (process check)**.
 
 ### Consequences (if hooks)
 Build: `DALKKAK_PANE_ID` injection in `pty.rs`; a hook-config installer (with backup +
