@@ -99,9 +99,16 @@ export class StreamParser {
       };
     }
 
-    // 3. Working / activity indicator
+    // 3. Working / activity indicator.
+    //    Claude Code's spinner prints "<Word> for <N>s" (e.g. "Crunched for 1s",
+    //    "Worked for 7s") and "(esc to interrupt)" while a turn is running. These are
+    //    FAR more reliable than scraping individual tool lines out of the TUI redraw,
+    //    which merges/splits text unpredictably (a redraw turned "Your home directory ("
+    //    into a bogus "Yourhomedirectory(" tool match).
     if (
-      /^(Thinking|Working|Processing|Analyzing|Reading|Searching|Planning)/i.test(
+      /\besc to interrupt\b/i.test(line) ||
+      /^[\W\s]*[A-Z][a-z]+\s+for\s+\d+(\.\d+)?s\b/.test(line) ||
+      /^[\W\s]*(Thinking|Working|Processing|Analyzing|Reading|Searching|Planning|Crunching|Pondering|Herding|Churning|Noodling|Forging|Simmering|Cooking|Brewing)\b/i.test(
         line,
       )
     ) {

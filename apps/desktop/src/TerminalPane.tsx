@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { ensureSpawned, getOrCreateTerminal } from "./terminalRegistry";
+import { SessionStatusBar } from "./viz/SessionStatusBar";
 import "@xterm/xterm/css/xterm.css";
 
 interface Props {
@@ -51,10 +52,14 @@ export function TerminalPane({ id, focused, onFocus }: Props) {
   }, [focused, id]);
 
   return (
-    <div
-      ref={containerRef}
-      className={`terminal-host ${focused ? "focused" : ""}`}
-      onMouseDown={onFocus}
-    />
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+      <SessionStatusBar id={id} />
+      <div
+        ref={containerRef}
+        className={`terminal-host ${focused ? "focused" : ""}`}
+        onMouseDown={onFocus}
+        style={{ flex: 1, minHeight: 0 }}
+      />
+    </div>
   );
 }

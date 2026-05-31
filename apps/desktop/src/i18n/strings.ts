@@ -44,6 +44,11 @@ const en = {
   "demo.kindQuestion": "Question",
   "demo.kindFlow": "Flow",
   "demo.roadmapLabel": "Where this fits in the roadmap",
+  "session.idle": "idle",
+  "session.thinking": "thinking",
+  "session.working": "working",
+  "session.blocked": "needs you",
+  "session.done": "done",
 } as const;
 
 export type StringKey = keyof typeof en;
@@ -85,6 +90,11 @@ const ko: Record<StringKey, string> = {
   "demo.kindQuestion": "질문",
   "demo.kindFlow": "흐름",
   "demo.roadmapLabel": "전체 로드맵에서 이 작업의 위치",
+  "session.idle": "대기 중",
+  "session.thinking": "생각 중",
+  "session.working": "작업 중",
+  "session.blocked": "확인 필요",
+  "session.done": "완료",
 };
 
 export const STRINGS: Record<Lang, Record<StringKey, string>> = { en, ko };

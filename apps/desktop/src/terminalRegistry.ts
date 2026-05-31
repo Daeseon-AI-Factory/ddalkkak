@@ -12,6 +12,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { StreamParser } from "@ddalkkak/augmentor";
+import { applyEvents, clearSessionStatus } from "./sessionStatus";
 
 interface PtyOutputEvent {
   id: string;
@@ -63,6 +64,7 @@ export function getOrCreateTerminal(id: string): RegistryEntry {
         // Parser is sync; event log is fire-and-forget.
         try {
           const evts = parser.feed(event.payload.data);
+          applyEvents(id, evts); // → live per-session status (sessionStatus.ts)
           for (const evt of evts) {
             void invoke("log_augmentor_event", { id, event: evt as unknown as Record<string, unknown> }).catch(() => {});
             if (import.meta.env?.DEV) console.debug(`[augmentor ${id}]`, evt);
@@ -114,6 +116,7 @@ export async function destroyTerminal(id: string): Promise<void> {
   }
   entry.term.dispose();
   registry.delete(id);
+  clearSessionStatus(id);
 }
 
 export function listTerminals(): string[] {

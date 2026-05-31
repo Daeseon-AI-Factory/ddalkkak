@@ -33,19 +33,47 @@ export function Sidebar({ startups, activeId, onSelect, onCreate, onContextMenu 
     <div className="sidebar">
       <div className="sidebar-list">
         {startups.map((s) => (
-          <button
-            key={s.id}
-            className={`startup-item ${s.id === activeId ? "active" : ""}`}
-            onClick={() => onSelect(s.id)}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              onContextMenu(s.id, e.clientX, e.clientY);
-            }}
-            title={`${s.name} — right-click for options`}
-          >
-            <span className="startup-emoji">{s.emoji}</span>
-            <span className="startup-name">{s.name}</span>
-          </button>
+          <div key={s.id} style={{ position: "relative", display: "flex", alignItems: "stretch" }}>
+            <button
+              className={`startup-item ${s.id === activeId ? "active" : ""}`}
+              onClick={() => onSelect(s.id)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                onContextMenu(s.id, e.clientX, e.clientY);
+              }}
+              title={s.name}
+              style={{ flex: 1, paddingRight: 26 }}
+            >
+              <span className="startup-emoji">{s.emoji}</span>
+              <span className="startup-name">{s.name}</span>
+            </button>
+            <button
+              type="button"
+              aria-label={`Options for ${s.name}`}
+              title="Options — rename, grant folder, delete…"
+              onClick={(e) => {
+                e.stopPropagation();
+                const r = e.currentTarget.getBoundingClientRect();
+                onContextMenu(s.id, r.right, r.bottom);
+              }}
+              style={{
+                position: "absolute",
+                right: 4,
+                top: "50%",
+                transform: "translateY(-50%)",
+                background: "transparent",
+                border: "none",
+                color: "#8b949e",
+                cursor: "pointer",
+                fontSize: 16,
+                lineHeight: 1,
+                padding: "2px 6px",
+                borderRadius: 4,
+              }}
+            >
+              ⋯
+            </button>
+          </div>
         ))}
       </div>
       <div className="sidebar-footer">
