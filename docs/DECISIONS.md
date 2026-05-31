@@ -115,9 +115,45 @@ but the API time remains. Cause beyond "the call scales with input, abnormally f
 haiku" is **unverified** (suspected account rate-limit / subscription throughput /
 cache-creation latency). See `docs/troubleshooting.md`.
 
-**Status: A stands but needs a follow-up on speed.** Candidate fixes (next decision —
-ADR-003): (a) direct haiku API call (≈2s, needs a valid API key — the user's
-`ANTHROPIC_API_KEY` is currently invalid); (b) async/background summarize with a progress
-state instead of a blocking modal; (c) verify whether the slowness is transient
-(rate-limit) before changing mechanism. On-demand still right; the *transport* is the open
-question.
+**Status: superseded by ADR-003** — the maintainer reframed the problem: don't re-read,
+self-summarize.
+
+---
+
+## ADR-003 — Layer 2 fast path: in-line self-summary, not post-hoc re-read
+
+- **Date:** 2026-05-31
+- **Status:** Accepted + VALIDATED (maintainer's idea)
+
+### Context
+ADR-002 spawned a *separate* `claude -p` that **re-reads the whole transcript** with a
+fresh model → ~22–54s, because a second model re-does the work and (at the user's
+`effortLevel: high`) thinks for thousands of tokens. Not MCP, not boot, not money (it
+runs on the subscription) — it's a redundant re-read. The maintainer's reframe: the
+session's OWN Claude already did the work and holds all the context — have **it** emit
+the summary as a byproduct of its response.
+
+### Decision
+Inject a directive via **`--append-system-prompt`** (scoped to DalkkakAI panes) so the
+pane's Claude appends `<dk-summary>{viz json}</dk-summary>` at the end of each response.
+The app captures that block from the PTY stream, **strips it from the terminal display**,
+and renders the card. The doer summarizes itself.
+
+### Validated (2026-05-31)
+`claude -p "List my home dir" --append-system-prompt "<directive>" --model
+claude-haiku-4-5 --strict-mcp-config` reliably appended a valid, accurate block:
+`<dk-summary>{"kind":"recap","data":{"headline":"Listed home directory contents",...}}</dk-summary>`.
+**Free** (part of the reply), **instant** (no separate call), **accurate** (full context).
+Kills the 22–54s problem entirely.
+
+### Consequences (build)
+- `pty.rs`: prepend a DalkkakAI-only `claude` wrapper on PATH that adds
+  `--append-system-prompt "<directive>"` — so it only affects sessions started in
+  DalkkakAI, not the user's Claude elsewhere.
+- Stream parser (`terminalRegistry`/augmentor): detect + extract + **strip**
+  `<dk-summary>…</dk-summary>` (buffer across chunks) → drive a per-session card.
+- The reusable summarizer prompt (`prompts/session_summary.md`) becomes the directive
+  content (compact form).
+- The ✨ on-demand `claude -p` (ADR-002) drops to a fallback / is removed.
+- Tradeoffs: adds a few tokens to each pane reply (free, subscription); the model must
+  remember the block (high but not 100% — a missed turn just yields no card, graceful).
