@@ -57,6 +57,8 @@ const en = {
   "usage.input": "input",
   "usage.cache": "cache",
   "usage.turns": "turns",
+  "usage.thisTurn": "this turn",
+  "usage.session": "session total",
   "usage.note": "tokens — not a $ bill (subscription)",
 } as const;
 
@@ -112,6 +114,8 @@ const ko: Record<StringKey, string> = {
   "usage.input": "입력",
   "usage.cache": "캐시",
   "usage.turns": "턴",
+  "usage.thisTurn": "이번 응답",
+  "usage.session": "세션 누적",
   "usage.note": "토큰 — 실제 청구 아님 (구독)",
 };
 

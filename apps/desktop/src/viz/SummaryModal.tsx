@@ -2,10 +2,17 @@
 //! centered on the whole window (not clipped inside a pane), big and scrollable. Reads
 //! the open-summary store; renders the right card for the payload's kind.
 
+import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "../i18n";
 import type { StringKey } from "../i18n/strings";
-import { type SessionUsage, setSummary, useSummary } from "../summaryModal";
+import {
+  getSummary,
+  type SessionUsage,
+  setSummary,
+  type UsageTotals,
+  useSummary,
+} from "../summaryModal";
 import { ConceptCard } from "./ConceptCard";
 import { NoteCard } from "./NoteCard";
 import { PlanCard } from "./PlanCard";
@@ -81,17 +88,47 @@ function fmt(n: number): string {
   return String(n);
 }
 
-/** Real per-session token usage, summed from the transcript. Output tokens are the
- *  meaningful signal (cache_read dominates but is near-free); no $ because a Max
- *  subscription has no per-token bill — so we never fabricate a dollar figure. */
+/** One labeled row of the usage table. `showCache` only on the session row (cache_read is a
+ *  whole-session curiosity, near-free, and dwarfs everything — noise on the per-turn row). */
+function UsageRow({
+  label,
+  u,
+  showCache,
+  t,
+}: {
+  label: string;
+  u: UsageTotals;
+  showCache: boolean;
+  t: (k: StringKey) => string;
+}) {
+  return (
+    <div style={{ display: "flex", gap: 14, alignItems: "baseline", flexWrap: "wrap" }}>
+      <span style={{ width: 92, flexShrink: 0, color: c.dim }}>{label}</span>
+      <span>
+        ✏️ {t("usage.output")} <b style={{ color: c.text }}>{fmt(u.output)}</b>
+      </span>
+      <span style={{ color: c.muted }}>
+        📥 {t("usage.input")} {fmt(u.input)}
+      </span>
+      {showCache && (
+        <span style={{ color: c.muted }}>
+          ♻️ {t("usage.cache")} {fmt(u.cache_read + u.cache_creation)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Real token usage from the transcript — the current turn AND the session total. Output is
+ *  the meaningful signal (cache_read dominates but is near-free); no $ because a Max
+ *  subscription has no per-token bill, so we never fabricate a dollar figure. */
 function UsageBar({ usage, t }: { usage: SessionUsage; t: (k: StringKey) => string }) {
   return (
     <div
       style={{
         display: "flex",
-        gap: 16,
-        flexWrap: "wrap",
-        alignItems: "center",
+        flexDirection: "column",
+        gap: 6,
         fontSize: 12,
         color: c.muted,
         marginBottom: 14,
@@ -99,19 +136,9 @@ function UsageBar({ usage, t }: { usage: SessionUsage; t: (k: StringKey) => stri
         borderBottom: `1px solid ${c.border}`,
       }}
     >
-      <span>
-        ✏️ {t("usage.output")} <b style={{ color: c.text }}>{fmt(usage.output)}</b>
-      </span>
-      <span>
-        📥 {t("usage.input")} {fmt(usage.input)}
-      </span>
-      <span>
-        ♻️ {t("usage.cache")} {fmt(usage.cache_read + usage.cache_creation)}
-      </span>
-      <span style={{ color: c.dim }}>
-        · {usage.messages} {t("usage.turns")}
-      </span>
-      <span style={{ marginLeft: "auto", color: c.dim, fontSize: 11 }}>{t("usage.note")}</span>
+      <UsageRow label={t("usage.thisTurn")} u={usage.turn} showCache={false} t={t} />
+      <UsageRow label={t("usage.session")} u={usage.session} showCache={true} t={t} />
+      <span style={{ color: c.dim, fontSize: 11 }}>{t("usage.note")}</span>
     </div>
   );
 }
@@ -119,6 +146,21 @@ function UsageBar({ usage, t }: { usage: SessionUsage; t: (k: StringKey) => stri
 export function SummaryModal() {
   const { t } = useT();
   const s = useSummary();
+
+  // Esc closes the popup. Registered once; checks the live store so it's a no-op when closed.
+  // Capture phase + stopPropagation so it doesn't also reach App's pane/startup nav handler.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && getSummary()) {
+        e.preventDefault();
+        e.stopPropagation();
+        setSummary(null);
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
+
   if (!s) return null;
 
   return createPortal(

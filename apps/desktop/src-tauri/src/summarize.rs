@@ -59,40 +59,98 @@ fn strip_fence(s: &str) -> String {
     t.trim().to_string()
 }
 
-/// Sum token usage across all assistant messages in a session transcript. Numbers are
-/// REAL (recorded per message by Claude Code); there's no cost field, and on a subscription
-/// there's no per-token bill, so we report tokens, not dollars (no fabricated $).
+/// One running tally of token usage.
+#[derive(Default)]
+struct Usage {
+    input: u64,
+    output: u64,
+    cache_read: u64,
+    cache_creation: u64,
+    messages: u64,
+}
+
+impl Usage {
+    /// Add one assistant message's `message.usage` object.
+    fn add(&mut self, u: &serde_json::Value) {
+        let g = |k: &str| u.get(k).and_then(|x| x.as_u64()).unwrap_or(0);
+        self.input += g("input_tokens");
+        self.output += g("output_tokens");
+        self.cache_read += g("cache_read_input_tokens");
+        self.cache_creation += g("cache_creation_input_tokens");
+        self.messages += 1;
+    }
+
+    fn json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "input": self.input,
+            "output": self.output,
+            "cache_read": self.cache_read,
+            "cache_creation": self.cache_creation,
+            "messages": self.messages,
+        })
+    }
+}
+
+/// True only for a REAL human prompt line — NOT a tool-result message, which Claude Code
+/// also records as `type:"user"` (content is an array carrying a `tool_result` block).
+/// A real prompt's content is a string, or an array with no tool_result block. We use this
+/// to find the start of the *current turn* (one prompt can spawn many assistant messages).
+fn is_user_prompt(v: &serde_json::Value) -> bool {
+    if v.get("type").and_then(|t| t.as_str()) != Some("user") {
+        return false;
+    }
+    match v.get("message").and_then(|m| m.get("content")) {
+        Some(serde_json::Value::String(_)) => true,
+        Some(serde_json::Value::Array(blocks)) => !blocks
+            .iter()
+            .any(|b| b.get("type").and_then(|t| t.as_str()) == Some("tool_result")),
+        _ => false,
+    }
+}
+
+/// Token usage for a session, split two ways:
+///   - `session`: summed across EVERY assistant message in the transcript (lifetime total).
+///   - `turn`: summed across only the assistant messages AFTER the last real user prompt
+///     (i.e. the most recent question — verified in real transcripts to span dozens of
+///     assistant messages when the turn made many tool calls; "last message only" undercounts).
+/// Numbers are REAL (recorded per message by Claude Code). There's no cost field, and on a
+/// subscription there's no per-token bill, so we report tokens, not dollars (no fabricated $).
 pub fn session_usage(transcript_path: String) -> Result<serde_json::Value, String> {
     if transcript_path.is_empty() || !Path::new(&transcript_path).exists() {
         return Err("no transcript for this session yet".into());
     }
     let content = std::fs::read_to_string(&transcript_path).map_err(|e| e.to_string())?;
-    let (mut input, mut output, mut cache_read, mut cache_creation, mut messages) =
-        (0u64, 0u64, 0u64, 0u64, 0u64);
-    for line in content.lines() {
-        let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
-            continue;
-        };
+    let parsed: Vec<Option<serde_json::Value>> = content
+        .lines()
+        .map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+        .collect();
+
+    // Index of the last real user prompt → everything after it is the current turn.
+    let mut turn_start: isize = -1;
+    for (i, pv) in parsed.iter().enumerate() {
+        if let Some(v) = pv {
+            if is_user_prompt(v) {
+                turn_start = i as isize;
+            }
+        }
+    }
+
+    let mut session = Usage::default();
+    let mut turn = Usage::default();
+    for (i, pv) in parsed.iter().enumerate() {
+        let Some(v) = pv else { continue };
         if v.get("type").and_then(|t| t.as_str()) != Some("assistant") {
             continue;
         }
         let Some(u) = v.get("message").and_then(|m| m.get("usage")) else {
             continue;
         };
-        let g = |k: &str| u.get(k).and_then(|x| x.as_u64()).unwrap_or(0);
-        input += g("input_tokens");
-        output += g("output_tokens");
-        cache_read += g("cache_read_input_tokens");
-        cache_creation += g("cache_creation_input_tokens");
-        messages += 1;
+        session.add(u);
+        if (i as isize) > turn_start {
+            turn.add(u);
+        }
     }
-    Ok(serde_json::json!({
-        "input": input,
-        "output": output,
-        "cache_read": cache_read,
-        "cache_creation": cache_creation,
-        "messages": messages,
-    }))
+    Ok(serde_json::json!({ "session": session.json(), "turn": turn.json() }))
 }
 
 /// Extract the JSON inside the LAST `<dk-summary>…</dk-summary>` in a text block.

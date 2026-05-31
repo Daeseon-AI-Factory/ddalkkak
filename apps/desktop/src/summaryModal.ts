@@ -5,12 +5,19 @@
 
 import { useSyncExternalStore } from "react";
 
-export interface SessionUsage {
+export interface UsageTotals {
   input: number;
   output: number;
   cache_read: number;
   cache_creation: number;
   messages: number;
+}
+
+/** Token usage split two ways: `turn` = the most recent question (assistant messages since
+ *  the last user prompt), `session` = the whole-session lifetime total. */
+export interface SessionUsage {
+  session: UsageTotals;
+  turn: UsageTotals;
 }
 
 export interface OpenSummary {
