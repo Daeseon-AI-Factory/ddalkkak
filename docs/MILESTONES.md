@@ -490,3 +490,16 @@ The tell was beautiful: capture could read the folder but the shell couldn't —
 - "Delete a startup in one click — no hidden right-click menus."
 - "We ship the honest limitation, not the flaky feature."
 
+## 2026-05-30 — Per-session status, the reliable version: Claude Code hooks (ADR-001) + the logging loop's first save
+
+### 🔧 Engineering
+- Replaced TUI scraping with Claude Code **hooks**. Each pane is tagged via `DALKKAK_PANE_ID` (tmux `new-session -e`); a guarded hook appends `{pane,event,tool}` to a data-dir file; `hooks.rs` tails it → emits `session-hook` → `sessionStatus` (hook-driven; `PreToolUse`→working, `Stop`→done, `Notification`→needs-you). Hook installed user-side in `~/.claude/settings.json` (backed up, DalkkakAI-scoped via the env guard, reversible). Before editing the config I verified via the claude-code-guide agent that hooks **combine** across user+project scopes (no shadowing) — the first agent answer was wrong, so I re-asked. The build then crashed at launch (SIGABRT): `hooks::spawn_watcher` used `tokio::spawn` inside the Tauri `setup` closure (no entered runtime) → fixed to `tauri::async_runtime::spawn`. Diagnosed straight from `runtime.log` (died in setup) + the macOS crash report. Commit `c5bc1b1`. End-to-end status pending dogfood.
+
+### 💬 Raw
+- Two wins in one. First: stopped band-aiding the TUI scraper and did the real thing — and double-checked the merge-behavior fact before editing Jason's actual Claude config, with a backup. Second, and better: the build → install → logs → fix loop earned its keep on its very first crash. Jason said five words ("DalkkakAI quit unexpectedly 이러는데") and the logs handed me a one-line fix. Then he asked, unprompted, whether I'd recorded it as a good case — he's right, it is.
+
+### 📣 Marketing
+- "DalkkakAI reads its own logs — when something breaks, the fix comes from evidence, not guesswork."
+- "Reliable per-session status, powered by Claude Code's own events — not by scraping the screen."
+- "Touch your config? Only with a backup, scoped to DalkkakAI, and fully reversible."
+

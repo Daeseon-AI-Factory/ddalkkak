@@ -1,0 +1,63 @@
+---
+title: "The logging loop's first real save — a launch crash diagnosed from logs, not guesswork"
+date: "2026-05-30"
+project: "dalkkak-ai"
+kind: "tech-retro"
+visibility: "public"
+language: "en"
+summary: "We'd just switched to a build → install → app-logs → fix loop instead of babysitting a dev server. The first crash after that change proved the loop: the founder said one sentence — 'it crashed' — and the logs did the rest. SIGABRT pinpointed to a one-line bug in minutes, no guesswork."
+tags: ["observability", "tauri", "rust", "debugging", "process"]
+---
+
+## The setup
+
+Earlier today we changed how we work: every improvement gets **built into the installed
+`/Applications/DalkkakAI.app`** (the founder launches it himself), the app writes a
+**daily `runtime.log`** under `~/Library/Logs/DalkkakAI/`, and I **read those logs to
+debug** instead of relaunching a flaky dev server. The whole point: the founder shouldn't
+have to dig — he reports, the logs explain.
+
+The very next build crashed on launch, so the loop got tested immediately.
+
+## One sentence of input
+
+The founder's entire bug report was: **"DalkkakAI quit unexpectedly 이러는데."** That's it.
+No stack trace, no repro steps, nothing he had to investigate.
+
+## What the logs said (no guessing)
+
+Two files answered it:
+
+1. **`runtime.log`** — it logged `tracing initialized` and `DalkkakAI starting`, but
+   **never** `tauri app setup complete`. So it died *inside* `setup`. That alone narrowed
+   it to the one thing I'd just added there: a hook-event file watcher.
+2. **The macOS crash report** (`~/Library/Logs/DiagnosticReports/appsdesktop-*.ips`) —
+   `Abort trap: 6` (SIGABRT), main thread, `std::process::abort` in the stack. A Rust
+   panic that aborted.
+
+Cross-referencing: my new `hooks::spawn_watcher` called `tokio::spawn(...)` inside the
+Tauri `setup` closure — which has **no entered tokio runtime**, so `tokio::spawn` panics.
+The working `capture::spawn_worker` used `tauri::async_runtime::spawn`. I'd just not
+matched the pattern.
+
+**Fix: one line** — `tokio::spawn` → `tauri::async_runtime::spawn`. Smoke-tested the
+binary myself (alive past setup, panes spawning) before handing it back.
+
+## Why this matters
+
+The founder did **nothing** beyond noticing the crash. No log-hunting, no flags, no
+"can you reproduce it." The diagnosis came entirely from logs the product writes about
+itself — exactly the byproduct-recording the connective layer is meant to automate. This
+is the small, concrete version of the whole thesis: *a solo founder shouldn't have to
+hold the details in their head; the system should.*
+
+It also validated splitting two questions that always get conflated in a crash: **how far
+did it get?** (answered by the presence/absence of milestone log lines) and **why did it
+die?** (answered by the OS crash report). Together they turn "quit unexpectedly" into a
+one-line fix.
+
+The decision that introduced this code (hooks for per-session status) is recorded in
+[`docs/DECISIONS.md`](../../docs/DECISIONS.md) ADR-001; the crash itself in
+`docs/troubleshooting.md`.
+
+**Commit**: `c5bc1b1`
