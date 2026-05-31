@@ -9,7 +9,9 @@ import { grantPathFor } from "./pathGrant";
 import { GraphPanel } from "./GraphPanel";
 import { useT } from "./i18n";
 import { listen } from "@tauri-apps/api/event";
-import { applyHookEvent } from "./sessionStatus";
+import { applyHookEvent, getSessionStatus } from "./sessionStatus";
+import { openSummaryFor } from "./summaryActions";
+import { getSummary, setSummary } from "./summaryModal";
 import { SummaryModal } from "./viz/SummaryModal";
 import {
   layoutKeyFor,
@@ -131,7 +133,7 @@ export default function App() {
     () => !localStorage.getItem("dalkkak.onboarded.v1"),
   );
   const [showGraph, setShowGraph] = useState(false);
-  const { lang, setLang } = useT();
+  const { lang, setLang, t } = useT();
 
   // Per-session status from Claude Code hooks (hooks.rs → "session-hook"). See ADR-001.
   useEffect(() => {
@@ -385,6 +387,20 @@ export default function App() {
         return;
       }
 
+      // Cmd/Ctrl + I → toggle the ✨ summary popup for the FOCUSED pane (Info/Insight).
+      // Open is a no-op on a plain shell (no Claude activity seen yet); Esc also closes.
+      if (e.key === "i" || e.key === "I") {
+        e.preventDefault();
+        if (getSummary()) {
+          setSummary(null);
+          return;
+        }
+        if (focusedId && getSessionStatus(focusedId).updatedAt > 0) {
+          void openSummaryFor(focusedId, t("summary.none"));
+        }
+        return;
+      }
+
       const isDigit = /^[1-9]$/.test(e.key);
       const paneIds = layout ? collectIds(layout) : [];
 
@@ -432,7 +448,7 @@ export default function App() {
     window.addEventListener("keydown", onKey, true); // capture: beat xterm to Ctrl/Cmd combos
     return () => window.removeEventListener("keydown", onKey, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusedId, layout, startups, activeStartupId]);
+  }, [focusedId, layout, startups, activeStartupId, t]);
 
   const activeStartup = startups.find((s) => s.id === activeStartupId) ?? null;
   const paneCount = layout ? collectIds(layout).length : 0;
@@ -503,19 +519,19 @@ export default function App() {
             <h2>👋 Welcome to DalkkakAI</h2>
             <p>Native multi-pane terminal for running multiple startups in parallel.</p>
             <div className="onboarding-section">
-              <div className="onboarding-label">Pane operations</div>
+              <div className="onboarding-label">Panes — <kbd>⌘</kbd> Command</div>
               <ul>
-                <li><kbd>⌘D</kbd> split right</li>
-                <li><kbd>⌘⇧D</kbd> stack below</li>
-                <li><kbd>⌘W</kbd> close focused pane</li>
+                <li><kbd>⌘D</kbd> split right · <kbd>⌘⇧D</kbd> stack below · <kbd>⌘W</kbd> close</li>
+                <li><kbd>⌘1</kbd>‥<kbd>⌘9</kbd> focus pane N · <kbd>⌘[</kbd> / <kbd>⌘]</kbd> prev / next</li>
+                <li><kbd>⌘I</kbd> summarize focused pane (✨) · <kbd>Esc</kbd> close summary</li>
                 <li>Click any pane → it gets focus (blue outline)</li>
               </ul>
             </div>
             <div className="onboarding-section">
-              <div className="onboarding-label">Startup navigation</div>
+              <div className="onboarding-label">Startups — <kbd>⌃</kbd> Control</div>
               <ul>
-                <li><kbd>⌘1</kbd>‥<kbd>⌘9</kbd> switch by sidebar index</li>
-                <li><kbd>⌘⇧[</kbd> / <kbd>⌘⇧]</kbd> previous / next</li>
+                <li><kbd>⌃1</kbd>‥<kbd>⌃9</kbd> switch startup N</li>
+                <li><kbd>⌃Tab</kbd> / <kbd>⌃⇧Tab</kbd> next / previous startup</li>
                 <li>Right-click sidebar item → rename / change emoji / delete</li>
               </ul>
             </div>

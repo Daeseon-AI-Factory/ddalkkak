@@ -5,24 +5,29 @@
 
 ---
 
-## Pane control (focus-based)
+## Pane control — `⌘` Command (focus-based)
 
 | Shortcut | Action | Source |
 |---|---|---|
 | `⌘D` | Split focused pane horizontally (new pane to the right) | iTerm2 / Warp / WezTerm convention |
 | `⌘⇧D` | Stack focused pane vertically (new pane below) | iTerm2 extension |
 | `⌘W` | Close focused pane (destroys xterm + PTY + tmux session) | macOS-wide convention |
+| `⌘1` .. `⌘9` | Focus pane by index within the current startup | Arc-style (⌘ = within-space) |
+| `⌘[` / `⌘]` | Focus previous / next pane (wraps around) | Arc-style |
+| `⌘I` | Summarize focused pane (✨ popup) — Info / Insight | DalkkakAI |
+| `Esc` | Close the summary popup | Universal |
 | **Mouse click** on any pane | Move focus to that pane (blue 2px outline shows focus) | Universal |
 
-## Startup navigation (sidebar)
+## Startup navigation — `⌃` Control (sidebar)
 
 | Shortcut | Action | Source |
 |---|---|---|
-| `⌘1` .. `⌘9` | Switch to startup by sidebar index (1 = first, 2 = second, ...) | VS Code / Chrome tab convention |
-| `⌘⇧[` | Previous startup (wraps around) | iTerm2 tab convention |
-| `⌘⇧]` | Next startup (wraps around) | iTerm2 tab convention |
+| `⌃1` .. `⌃9` | Switch to startup by sidebar index (1 = first, 2 = second, ...) | Arc-style (⌃ = across-spaces) |
+| `⌃Tab` | Next startup (wraps around) | browser tab convention |
+| `⌃⇧Tab` | Previous startup (wraps around) | browser tab convention |
 
 > New pane created by Split/Stack **automatically gets focus** — matches iTerm/VS Code behavior.
+> **The Arc split:** `⌘` (Command) always stays *within* the current startup (panes); `⌃` (Control) moves *between* startups — like Arc browser's tabs vs spaces.
 
 ---
 

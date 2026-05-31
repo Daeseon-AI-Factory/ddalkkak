@@ -3,12 +3,11 @@
 //! centered popup (summaryModal store → SummaryModal at app root). Hidden on plain shells.
 
 import { motion } from "framer-motion";
-import { invoke } from "@tauri-apps/api/core";
 import type { ActivityState } from "@ddalkkak/augmentor";
 import { useT } from "../i18n";
 import type { StringKey } from "../i18n/strings";
 import { useSessionStatus } from "../sessionStatus";
-import { setSummary, type SessionUsage } from "../summaryModal";
+import { openSummaryFor } from "../summaryActions";
 import { c } from "./tokens";
 
 const META: Record<ActivityState, { color: string; tkey: StringKey; pulse: boolean }> = {
@@ -29,26 +28,7 @@ export function SessionStatusBar({ id }: { id: string }) {
 
   const m = META[s.state];
 
-  const run = async () => {
-    const tpath = s.tpath;
-    if (!tpath) {
-      setSummary({ paneId: id, state: "error", error: t("summary.none") });
-      return;
-    }
-    setSummary({ paneId: id, state: "loading" });
-    const usage = await invoke<SessionUsage>("session_usage", { transcriptPath: tpath }).catch(
-      () => undefined,
-    );
-    try {
-      const payload = await invoke<{ kind: string; data: unknown }>("read_inline_summary", {
-        transcriptPath: tpath,
-      });
-      setSummary({ paneId: id, state: "done", payload, usage });
-    } catch (e) {
-      // no summary block yet, but still show the token usage if we have it
-      setSummary({ paneId: id, state: usage ? "done" : "error", usage, error: String(e) });
-    }
-  };
+  const run = () => void openSummaryFor(id, t("summary.none"));
 
   return (
     <div
@@ -77,8 +57,8 @@ export function SessionStatusBar({ id }: { id: string }) {
       {s.lastTool && s.state === "tool-call" && <span style={{ color: c.dim }}>· {s.lastTool}</span>}
       <button
         type="button"
-        onClick={() => void run()}
-        title={t("session.summarize")}
+        onClick={run}
+        title={`${t("session.summarize")} (⌘I)`}
         style={{
           marginLeft: "auto",
           background: "transparent",
