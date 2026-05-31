@@ -12,6 +12,7 @@ export interface SessionStatus {
   state: ActivityState;
   lastTool?: string;
   updatedAt: number; // 0 = no event seen yet → the strip stays hidden
+  tpath?: string; // latest transcript_path for this pane (for on-demand summarize, ADR-002)
 }
 
 const DEFAULT: SessionStatus = { state: "idle", updatedAt: 0 };
@@ -33,7 +34,7 @@ const HOOK_STATE: Record<string, ActivityState> = {
 
 /** Handle one `session-hook` payload — a raw JSON line `{pane, event, tool, ts}`. */
 export function applyHookEvent(raw: string): void {
-  let msg: { pane?: string; event?: string; tool?: string };
+  let msg: { pane?: string; event?: string; tool?: string; tpath?: string };
   try {
     msg = JSON.parse(raw);
   } catch {
@@ -47,6 +48,7 @@ export function applyHookEvent(raw: string): void {
     state,
     lastTool: msg.tool || (state === "tool-call" ? prev?.lastTool : undefined),
     updatedAt: Date.now(),
+    tpath: msg.tpath || prev?.tpath,
   });
   emit();
 }

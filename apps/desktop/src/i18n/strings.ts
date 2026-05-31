@@ -49,6 +49,9 @@ const en = {
   "session.working": "working",
   "session.blocked": "needs you",
   "session.done": "done",
+  "session.summarize": "Summarize",
+  "summary.loading": "Summarizing this session…",
+  "summary.title": "Session summary",
 } as const;
 
 export type StringKey = keyof typeof en;
@@ -95,6 +98,9 @@ const ko: Record<StringKey, string> = {
   "session.working": "작업 중",
   "session.blocked": "확인 필요",
   "session.done": "완료",
+  "session.summarize": "요약",
+  "summary.loading": "이 세션 요약 중…",
+  "summary.title": "세션 요약",
 };
 
 export const STRINGS: Record<Lang, Record<StringKey, string>> = { en, ko };

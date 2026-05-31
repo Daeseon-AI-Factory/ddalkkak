@@ -4,6 +4,7 @@ mod capture;
 mod hooks;
 mod paths;
 mod pty;
+mod summarize;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -116,6 +117,12 @@ async fn capture_now(app: tauri::AppHandle) {
     capture::poll_once(&app).await;
 }
 
+/// Layer 2 — on-demand session summary via the user's `claude -p` (ADR-002).
+#[tauri::command]
+async fn summarize_session(transcript_path: String) -> Result<serde_json::Value, String> {
+    summarize::summarize(transcript_path).await
+}
+
 #[tauri::command]
 fn pty_kill(id: String, state: State<'_, PtyState>) -> Result<(), String> {
     info!(target: "cmd", id = %id, "pty_kill");
@@ -170,7 +177,8 @@ pub fn run() {
             grant_project_path,
             revoke_project_path,
             graph_list,
-            capture_now
+            capture_now,
+            summarize_session
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
