@@ -176,3 +176,16 @@ Kills the 22–54s problem entirely.
 - **Verified:** existing `.zshrc` byte-identical after install (append-only confirmed);
   backup present; `claude` is a function in DalkkakAI panes and the real binary in normal
   terminals; no crash. Live card render pending the maintainer's in-app confirm.
+
+### Problem found (2026-05-31) — capture from the stream is unreliable; read the transcript
+Live test in interactive panes: the model **does** emit a clean `<dk-summary>{json}</dk-summary>`
+(verified in the transcript JSONL), but the in-app result is wrong — the **raw JSON leaks
+into the terminal** and the **card is empty**. Root cause: we capture + strip from the
+**interactive TUI byte stream**, which Claude Code mangles (markup-handling of the
+angle-bracket tags + cursor-redraws/ANSI), so `SummaryStripper` misses. **This is the exact
+wall ADR-001 already taught us** (TUI scraping is unreliable → use structured channels) —
+re-hit here for capture. **Next (ADR-004?):** read the latest `<dk-summary>` from the
+**transcript file** (`transcript_path`, which the Stop hook already provides), not the
+xterm stream. Hiding the block from the visible TUI is the remaining open question. The
+self-summary *idea* (ADR-003) stands; only the capture *transport* needs to move from
+stream → transcript. See `docs/troubleshooting.md`.
