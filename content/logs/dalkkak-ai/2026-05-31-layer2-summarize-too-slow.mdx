@@ -1,0 +1,64 @@
+---
+title: "Layer 2's wall: a good summary that takes 24 seconds"
+date: "2026-05-31"
+project: "dalkkak-ai"
+kind: "troubleshoot"
+visibility: "public"
+language: "en"
+summary: "Built an on-demand '✨ Summarize this session' button that runs the user's own claude -p. The card content came out great (a workflow-designed prompt picks the right kind in plain language) — but it takes 22–54 seconds. Measuring split boot from API time and killed the obvious guesses."
+tags: ["claude-code", "latency", "measurement", "byo-llm", "rust"]
+---
+
+## What we built
+
+Per-session **on-demand summary** (ADR-002): click ✨ on a terminal session → the app
+reads that session's transcript tail → runs the user's **own** `claude -p` (BYO, no
+extra setup) → renders a recap / plan / question / concept / note card. The summarizer
+prompt is a maintained standard (`prompts/session_summary.md`), designed by a 3-draft →
+synthesise workflow so it picks the *right* card kind and writes for a non-engineer.
+
+The content works. On a real session it returned a clean `note` card: *"Reviewed stream
+parser for Claude Code events… user asking what's next."* Exactly the glanceable,
+honest, plain-language summary we wanted.
+
+## The wall
+
+It takes **22–54 seconds.** The button shows "요약 중…" so long it reads as broken.
+
+## Measuring beat guessing
+
+The obvious guess was "`claude -p` boots the whole agent — MCP servers, hooks, shell
+snapshot — that's the cost." So I added `--strict-mcp-config` (load no MCP servers). Barely
+moved. Then I split the two halves the CLI reports — total vs API:
+
+```
+3000-char transcript  → duration_ms 22992, duration_api_ms 22938
+12000-char transcript → duration_ms 54224, duration_api_ms 54102
+```
+
+`duration_api_ms ≈ duration_ms` — so **boot is negligible; the API call itself is the
+20–54s**, and it **scales with input size**. A tiny prompt returns in ~1.8s. So it's not
+boot, not MCP, not our code — it's the response time on this account/path for haiku,
+abnormally slow for the token count.
+
+That kills the easy fixes (smaller prompt barely helps; MCP off barely helps) and points
+at the real variable: throughput on the subscription `claude -p` path — possibly the
+account being rate-limited after a heavy day, possibly cache-creation latency. **I'm not
+asserting which** (`input_tokens` reported as 10 with the bulk in `cache_creation` is a
+clue, not a verdict); it's logged as unverified, to test on a rested account or against a
+direct API call.
+
+## The lesson
+
+Before wiring a **CLI-spawn into an interactive button**, measure end-to-end latency on
+*real* input — a one-shot CLI that boots an agent and makes a network call is fine for a
+batch job and miserable for a click. And always split **boot vs API time**
+(`duration_ms` vs `duration_api_ms`) so you attack the right half instead of optimizing
+the cheap one. I removed boot cost and the feature was still unusable, because boot was
+never the problem.
+
+The decision (ADR-002) holds — on-demand BYO summary is right — but the *transport* is
+reopened (ADR-003 next): a direct haiku call (~2s) vs background/async summarize. Tracked
+in `docs/DECISIONS.md` + `docs/troubleshooting.md`.
+
+**Commit**: `753881b`

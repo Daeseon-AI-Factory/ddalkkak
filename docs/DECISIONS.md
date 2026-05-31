@@ -104,3 +104,20 @@ The hook must also capture `transcript_path`; a Rust command spawns
 `claude -p --output-format json` with a prompt that emits a locked viz payload; the
 renderer adds the button + a per-session card surface. For shipping: same mechanism
 (every user already has Claude Code).
+
+### Problem found (2026-05-31) — too slow
+Built it (commit `753881b`) and measured: the card *content* is good (the
+workflow-designed prompt at `prompts/session_summary.md` picks the right kind, plain
+language), **but `claude -p` is too slow for an interactive button: ~22–54s** of API
+time (`duration_api_ms ≈ duration_ms`, so it's the call not boot; scales with input —
+22.9s at 3000 chars, 54.1s at 12000). `--strict-mcp-config` removed the MCP cold-start
+but the API time remains. Cause beyond "the call scales with input, abnormally for
+haiku" is **unverified** (suspected account rate-limit / subscription throughput /
+cache-creation latency). See `docs/troubleshooting.md`.
+
+**Status: A stands but needs a follow-up on speed.** Candidate fixes (next decision —
+ADR-003): (a) direct haiku API call (≈2s, needs a valid API key — the user's
+`ANTHROPIC_API_KEY` is currently invalid); (b) async/background summarize with a progress
+state instead of a blocking modal; (c) verify whether the slowness is transient
+(rate-limit) before changing mechanism. On-demand still right; the *transport* is the open
+question.
