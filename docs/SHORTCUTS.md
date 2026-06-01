@@ -28,6 +28,7 @@
 
 > New pane created by Split/Stack **automatically gets focus** — matches iTerm/VS Code behavior.
 > **The Arc split:** `⌘` (Command) always stays *within* the current startup (panes); `⌃` (Control) moves *between* startups — like Arc browser's tabs vs spaces.
+> Press `⌘/` (or the **⌨ Keys** toolbar button) any time to see this list inside the app.
 
 ---
 

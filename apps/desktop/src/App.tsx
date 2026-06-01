@@ -13,6 +13,7 @@ import { applyHookEvent, getSessionStatus } from "./sessionStatus";
 import { openSummaryFor } from "./summaryActions";
 import { getSummary, setSummary } from "./summaryModal";
 import { SummaryModal } from "./viz/SummaryModal";
+import { ShortcutsOverlay } from "./ShortcutsOverlay";
 import {
   layoutKeyFor,
   loadActiveStartupId,
@@ -133,6 +134,7 @@ export default function App() {
     () => !localStorage.getItem("dalkkak.onboarded.v1"),
   );
   const [showGraph, setShowGraph] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const { lang, setLang, t } = useT();
 
   // Per-session status from Claude Code hooks (hooks.rs → "session-hook"). See ADR-001.
@@ -387,6 +389,13 @@ export default function App() {
         return;
       }
 
+      // Cmd + / → toggle the keyboard-shortcuts guide (⌘ never reaches the terminal).
+      if (e.metaKey && e.key === "/") {
+        e.preventDefault();
+        setShowShortcuts((v) => !v);
+        return;
+      }
+
       // Cmd/Ctrl + I → toggle the ✨ summary popup for the FOCUSED pane (Info/Insight).
       // Open is a no-op on a plain shell (no Claude activity seen yet); Esc also closes.
       if (e.key === "i" || e.key === "I") {
@@ -488,6 +497,7 @@ export default function App() {
             <button className="close" onClick={closeFocused} title="Close focused pane (⌘W)">✕ Close</button>
             <button onClick={resetLayout} title="Destroy all panes in this startup and start over">⟲ Reset</button>
             <button onClick={() => setShowGraph(true)} title="Connective graph — changes captured across startups">📊 Graph</button>
+            <button onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts (⌘/)">⌨ Keys</button>
             <button onClick={() => setLang(lang === "en" ? "ko" : "en")} title="Language — English / 한국어">
               🌐 {lang.toUpperCase()}
             </button>
@@ -581,6 +591,7 @@ export default function App() {
       )}
 
       <SummaryModal />
+      <ShortcutsOverlay open={showShortcuts} onClose={() => setShowShortcuts(false)} />
     </div>
   );
 }
