@@ -229,7 +229,8 @@ transcript has no `costUSD` field, so a dollar figure would be fabricated). See
 
 ## ADR-005 — Usage metrics are a read-time "pulse", not a stored telemetry pipeline
 
-**Status:** Proposed (2026-05-31) — pending Jason's answers to the open questions in the spec.
+**Status:** Accepted (2026-05-31) — design locked; six open questions resolved on honest/cheap
+defaults (see the spec). Code: P0 not yet built.
 **Full spec:** [`docs/USAGE_PULSE.md`](USAGE_PULSE.md).
 
 **Context.** Jason asked for per-startup / daily usage metrics AND logging of the internal
@@ -258,6 +259,8 @@ P2 only when a reader consumes it). Tool-mix/retry/block were re-sourced from th
 not hooks, because the product's PreToolUse/PostToolUse hooks fire sparsely (measured ~1 in 37
 events) and the PostToolUse hook drops `tool_response` — so a hook-based count would be near-empty.
 
-**Open / not yet decided.** The six open questions in the spec (active-day definition, `unassigned`
-visibility, steps/turn framing, tool_error exclusion, timezone, hook line shape). No code until P0
-is approved + those are answered.
+**Resolved (2026-05-31, design lock).** active-day = any hook event OR commit (commits also tracked
+separately); `unassigned` shown as a visible row; steps/turn = descriptive trend only, no score;
+tool_error = raw counts labelled "includes expected"; timezone = local Toronto; hook `cwd` not
+needed for P0 (transcript `cwd` attributes day one). Code: P0 (`usage_pulse()` + views) is the next
+build step, pending Jason's go + scope.

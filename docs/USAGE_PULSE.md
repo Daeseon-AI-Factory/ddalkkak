@@ -1,8 +1,9 @@
 # DalkkakAI — Usage Pulse (spec)
 
-> **Status:** Proposed (2026-05-31). Pending Jason's answers to the open questions below.
-> Designed via a 3-draft → adversarial-critique → synthesis workflow (7 agents) that
-> verified every reuse claim against the actual code. See `docs/DECISIONS.md` ADR-005.
+> **Status:** Accepted (2026-05-31). Design locked — the six open questions are resolved
+> below. Code: P0 not yet built. Designed via a 3-draft → adversarial-critique → synthesis
+> workflow (7 agents) that verified every reuse claim against the actual code.
+> See `docs/DECISIONS.md` ADR-005.
 
 ## Philosophy — "pulse, not telemetry"
 
@@ -113,16 +114,21 @@ wait-on-user *duration* as a headline (no "unblocked" event → unreliable); per
 - **Scope creep is THE biggest risk:** every phase past P0 must clear an explicit, falsifiable
   trigger. Additions require a named "use AI better" question first.
 
-## Open questions (need Jason)
+## Resolved decisions (design locked, 2026-05-31)
 
-1. **'active day' definition** — any hook event OR any commit, or count commits separately?
-   (Affects whether a day of pure exploring with zero commits reads as "active" or "thrash".)
-2. **'unassigned' bucket** — show it as a visible row (honest about coverage gaps) or hide it?
-   And is shared-monorepo pooling acceptable, or do you want a per-pane startup tag from day one?
-3. **steps_per_turn framing** — a flagged "unusually high-effort vs your baseline" nudge, or a
-   purely descriptive trend with zero judgment?
-4. **tool_error exclusion** — heuristic to drop expected errors, or show raw counts labelled
-   "includes routine/expected errors" for v1?
-5. **Timezone** — bucket by local (Toronto) tz, accepting midnight/DST/travel smear? (Fine for a pulse.)
-6. **Hook line shape** — confirm the *product* hook emits `ts`; OK to add `cwd` later? (Not needed
-   for P0 — attribution uses transcript `cwd` so it works day one with no hook change.)
+The six open questions, resolved on honest/cheap defaults (Jason to override any):
+
+1. **'active day'** = **any hook event OR any commit** marks a startup active that day. Commits are
+   ALSO tracked separately (they feed shipped-vs-thrash). So a day of pure exploring still reads as
+   "active"; whether it *shipped* is a different view, not a demotion to "inactive".
+2. **'unassigned'** = **shown as a visible row** in the effort split (honest about coverage gaps,
+   never hidden). Shared-monorepo pooling (two startups under one granted root → the owning startup)
+   is **accepted for v1**; a per-pane startup tag is a later refinement, not P0.
+3. **steps_per_turn** = **purely descriptive trend** vs this startup's own baseline. **No score, no
+   "prompt quality", no nudge** — zero judgment (a 47-step turn can be a perfectly good ask).
+4. **tool_error** = v1 shows **raw `is_error` counts, labelled "includes routine/expected errors"**.
+   The expected-error exclusion heuristic is a later refinement, not P0.
+5. **Timezone** = **local (Toronto) tz**, midnight/DST/travel smear accepted and documented. Fine
+   for a day-grained pulse.
+6. **Hook line shape** = **not needed for P0** — attribution uses the transcript's `cwd`, so the
+   pulse works day one with no hook change. Adding `cwd`/`ts` to the product hook is a P1+ option.
