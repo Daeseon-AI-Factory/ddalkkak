@@ -9,7 +9,7 @@ import { grantPathFor } from "./pathGrant";
 import { GraphPanel } from "./GraphPanel";
 import { useT } from "./i18n";
 import { listen } from "@tauri-apps/api/event";
-import { applyHookEvent, getSessionStatus } from "./sessionStatus";
+import { applyHookEvent } from "./sessionStatus";
 import { openSummaryFor } from "./summaryActions";
 import { getSummary, setSummary } from "./summaryModal";
 import { SummaryModal } from "./viz/SummaryModal";
@@ -397,14 +397,13 @@ export default function App() {
       }
 
       // Cmd/Ctrl + I → toggle the ✨ summary popup for the FOCUSED pane (Info/Insight).
-      // Open is a no-op on a plain shell (no Claude activity seen yet); Esc also closes.
+      // Always opens *something* (a plain pane shows the "no summary yet" message) so the
+      // shortcut never feels dead. Esc / ⌘I again closes.
       if (e.key === "i" || e.key === "I") {
         e.preventDefault();
         if (getSummary()) {
           setSummary(null);
-          return;
-        }
-        if (focusedId && getSessionStatus(focusedId).updatedAt > 0) {
+        } else if (focusedId) {
           void openSummaryFor(focusedId, t("summary.none"));
         }
         return;
