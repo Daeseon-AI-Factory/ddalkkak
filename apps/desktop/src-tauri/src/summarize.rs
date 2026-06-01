@@ -95,7 +95,7 @@ impl Usage {
 /// also records as `type:"user"` (content is an array carrying a `tool_result` block).
 /// A real prompt's content is a string, or an array with no tool_result block. We use this
 /// to find the start of the *current turn* (one prompt can spawn many assistant messages).
-fn is_user_prompt(v: &serde_json::Value) -> bool {
+pub(crate) fn is_user_prompt(v: &serde_json::Value) -> bool {
     if v.get("type").and_then(|t| t.as_str()) != Some("user") {
         return false;
     }

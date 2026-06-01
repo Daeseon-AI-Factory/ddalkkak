@@ -5,6 +5,7 @@ mod hooks;
 mod inline;
 mod paths;
 mod pty;
+mod pulse;
 mod summarize;
 
 use std::collections::HashMap;
@@ -136,6 +137,16 @@ fn session_usage(transcript_path: String) -> Result<serde_json::Value, String> {
     summarize::session_usage(transcript_path)
 }
 
+/// Usage Pulse (ADR-005) — read-time, zero-storage cross-startup rollups for the 6 views.
+#[tauri::command]
+fn usage_pulse(
+    allow: State<'_, paths::PathAllowlist>,
+    store: State<'_, capture::GraphStore>,
+) -> Result<serde_json::Value, String> {
+    info!(target: "cmd", "usage_pulse");
+    pulse::usage_pulse(allow.snapshot(), store.read_all())
+}
+
 #[tauri::command]
 fn pty_kill(id: String, state: State<'_, PtyState>) -> Result<(), String> {
     info!(target: "cmd", id = %id, "pty_kill");
@@ -197,7 +208,8 @@ pub fn run() {
             capture_now,
             summarize_session,
             read_inline_summary,
-            session_usage
+            session_usage,
+            usage_pulse
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -7,6 +7,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { GraphNode } from "@ddalkkak/shared";
 import { ActivityView } from "./viz/ActivityView";
 import { VizDemo } from "./viz/VizDemo";
+import { PulsePanel } from "./viz/PulsePanel";
 import { useT } from "./i18n";
 
 interface Props {
@@ -24,7 +25,7 @@ export function GraphPanel({ startups, onClose }: Props) {
   const { t } = useT();
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<"graph" | "list" | "demo">("graph");
+  const [view, setView] = useState<"graph" | "list" | "demo" | "pulse">("graph");
 
   const refresh = async () => {
     setLoading(true);
@@ -94,6 +95,9 @@ export function GraphPanel({ startups, onClose }: Props) {
             <button type="button" onClick={() => setView("demo")} style={{ fontWeight: view === "demo" ? 700 : 400 }}>
               🎨 {t("graph.cards")}
             </button>
+            <button type="button" onClick={() => setView("pulse")} style={{ fontWeight: view === "pulse" ? 700 : 400 }}>
+              📈 {t("pulse.tab")}
+            </button>
             <button type="button" onClick={() => void invoke("capture_now").then(refresh)}>
               {t("graph.captureNow")}
             </button>
@@ -106,11 +110,15 @@ export function GraphPanel({ startups, onClose }: Props) {
           </span>
         </div>
 
-        <div style={{ fontSize: 11, color: "#64748b", marginBottom: 12 }}>
-          {view === "demo" ? t("graph.demoHint") : t("graph.realHint")}
-        </div>
+        {view !== "pulse" && (
+          <div style={{ fontSize: 11, color: "#64748b", marginBottom: 12 }}>
+            {view === "demo" ? t("graph.demoHint") : t("graph.realHint")}
+          </div>
+        )}
 
-        {view === "demo" ? (
+        {view === "pulse" ? (
+          <PulsePanel startups={startups} />
+        ) : view === "demo" ? (
           <VizDemo />
         ) : loading ? (
           <p>Loading…</p>
