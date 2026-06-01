@@ -19,6 +19,9 @@ It answers a handful of "where is my AI effort going / where does it stall" ques
 - **Cheap by default.** Phase 1 persists **nothing** — it rolls up data we already have on read.
 - **Counts & enums only.** Never log tool inputs, paths, commands, edit content, prompt text,
   or error bodies (CLAUDE.md security). `tool_name` is an enum; `is_error` is a boolean.
+- **Every item self-explains.** Each view carries a one-line, plain-language caption right
+  beside it — a non-engineer founder must NEVER have to wonder "what does this number mean?".
+  The caption is part of the view, not a tooltip you have to hover. (Jason, 2026-05-31.)
 
 ## Architecture
 
@@ -86,6 +89,20 @@ wait-on-user *duration* as a headline (no "unblocked" event → unreliable); per
 | **Explore-vs-produce** | Reading/searching or editing/running? | tool counts by enum |
 | **Friction strip** | Waiting on me, or thrashing on failed tools? | block count (lead) + tool_error by tool; any duration marked "approx" |
 | **Shipped-vs-thrash** | Did activity become commits? | turns vs commits/startup/day |
+
+## Inline captions (locked) — every item self-explains
+
+The exact one-liner shown beside each view (English; `ko` added at build via i18n). Plain
+language, no jargon, no `$`, states the honest unit:
+
+| View | Caption (shown in-app, beside the data) |
+|---|---|
+| Effort split | "How much AI generated in each startup this week (code, answers). Bigger bar = more work there. Effort, not a bill." |
+| Momentum | "How many of the last 14 days you actually moved this startup with AI. A long gap = it's stalling." |
+| Fan-out / scope | "Internal steps the agent ran per question. Higher than usual = a big task, or a vague ask. Not a score — just a trend." |
+| Explore-vs-produce | "Is AI mostly reading/searching (exploring) or editing/running (producing)? Lots of reading = it may be stuck." |
+| Friction | "Where the flow stalls. 'Waiting on me' = times AI paused for permission/input. 'Tool errors' = failed commands (includes expected ones)." |
+| Shipped-vs-thrash | "Times you asked AI that day vs changes actually committed. Many asks, no commits = churn or stuck." |
 
 ## Phasing
 
