@@ -1,9 +1,13 @@
 # DalkkakAI — Usage Pulse (spec)
 
-> **Status:** Accepted (2026-05-31). Design locked — the six open questions are resolved
-> below. Code: P0 not yet built. Designed via a 3-draft → adversarial-critique → synthesis
-> workflow (7 agents) that verified every reuse claim against the actual code.
-> See `docs/DECISIONS.md` ADR-005.
+> **Status:** Accepted — **P0 Built** (2026-05-31, commit `e34790b`). All 6 views ship in the
+> 📈 Pulse tab of 📊 Graph. Design locked; six open questions resolved below. Designed via a
+> 3-draft → adversarial-critique → synthesis workflow (7 agents) that verified every reuse
+> claim against the actual code. See `docs/DECISIONS.md` ADR-005.
+>
+> **P0 note:** one spec assumption was wrong — the hook line DOES carry `cwd` + `ts` (the
+> renderer just didn't parse them), so attribution also uses the hook's own cwd and the
+> rollup is scoped to hook `tpath`s (DalkkakAI-run sessions only). See `docs/troubleshooting.md`.
 
 ## Philosophy — "pulse, not telemetry"
 

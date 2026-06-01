@@ -1,0 +1,55 @@
+---
+title: "Usage Pulse P0 shipped: a zero-storage, cross-startup 'pulse' that reads its numbers at view-open"
+date: "2026-05-31"
+project: "dalkkak-ai"
+kind: "update"
+visibility: "public"
+language: "en"
+summary: "Built all six Usage Pulse views on the locked spec — effort split, momentum, fan-out, explore-vs-produce, friction, shipped-vs-thrash — backed by one pure Rust roller that persists nothing and never shows a dollar. Verified end-to-end on real data, and caught the spec's one wrong assumption about the hook line."
+tags: ["rust", "tauri", "metrics", "honest-metrics", "react"]
+---
+
+## What shipped
+
+The full P0 of [Usage Pulse](https://github.com/) — a cross-startup dashboard in the 📈 Pulse
+tab — went from locked spec to installed app. Six glanceable views, each with a plain-language
+caption beside it (so a non-engineer never wonders what a number means):
+
+- **Effort split** — output tokens per startup this week (bars)
+- **Momentum** — a 14-day active-day dot strip + days-since-active
+- **Fan-out** — internal agent steps per question, vs that startup's own baseline
+- **Explore vs produce** — read/search vs edit/run tool mix
+- **Friction** — times AI waited on you + tool errors (with an honest "history starts" note)
+- **Shipped vs thrash** — asks that day vs commits that landed
+
+## The engine: one pure function, zero storage
+
+`pulse.rs::usage_pulse()` rolls every number **at view-open** from data already on disk and
+**writes nothing**: the hook stream (`session-events.jsonl`), each DalkkakAI-run session's
+native transcript, and the GraphStore change nodes. Honest units only — **output tokens**,
+active days, counts. No total/cache tokens in any view (they're re-reads, noise), and **no `$`**
+(a Max subscription has no per-token bill, so a dollar would be fabricated). Startup attribution
+is by `cwd` → granted root, longest-prefix-wins, ambiguity → a visible `unassigned` row — never
+confidently-wrong.
+
+## Verify the artifact, not the code that reads it
+
+The design synthesis — which had impressively read the actual codebase — still got one thing
+wrong: it said the hook line had no `cwd` and no timestamp, and built the whole cold-start story
+around that gap. That claim came from `sessionStatus.ts`, which only *parses*
+`{pane,event,tool,tpath}`. But `tail`-ing the real `session-events.jsonl` showed every line is
+`{pane,event,tool,cwd,tpath,ts}` — the renderer just ignored two fields the hook was already
+writing. The cheaper, more-reliable attribution key was sitting unused.
+
+Lesson, logged: **a parser reading a subset of a file's fields is not evidence of the file's
+shape.** Read the real artifact before designing around "field X doesn't exist."
+
+## Verified on real data
+
+Before wiring the frontend, a throwaway Rust test ran the roller against the real hook log +
+transcripts: attribution matched (`startup-ddalkkak` vs home-dir → `unassigned`), the GraphStore
+commit join worked (25 and 1 commits on two real startups), local-tz day bucketing was correct,
+and blocks (26) / turns (31) / tool-mix all populated. Then the test was removed.
+
+`cargo check` + `tsc` clean, bundled, installed. Full en/ko i18n. Spec/ADR-005 marked Built.
+Commit `e34790b`.

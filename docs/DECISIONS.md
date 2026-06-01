@@ -229,8 +229,8 @@ transcript has no `costUSD` field, so a dollar figure would be fabricated). See
 
 ## ADR-005 — Usage metrics are a read-time "pulse", not a stored telemetry pipeline
 
-**Status:** Accepted (2026-05-31) — design locked; six open questions resolved on honest/cheap
-defaults (see the spec). Code: P0 not yet built.
+**Status:** Accepted + **P0 Built** (2026-05-31) — design locked; six open questions resolved;
+all 6 views shipped in the 📈 Pulse tab. Commit `e34790b`.
 **Full spec:** [`docs/USAGE_PULSE.md`](USAGE_PULSE.md).
 
 **Context.** Jason asked for per-startup / daily usage metrics AND logging of the internal
